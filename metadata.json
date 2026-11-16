@@ -1,0 +1,6 @@
+{
+  "name": "KlangStage",
+  "description": "Low-latency MIDI live electronic performance synthesizer with trending band and song chord charts and AI sound design.",
+  "requestFramePermissions": ["microphone"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
