@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { midiNoteToName } from '../audio/midiManager';
 
 interface PerformanceKeyboardProps {
-  baseOctave: number; // e.g., 3 means C3..B4 (2 octaves + C5)
+  baseOctave: number;
   onOctaveChange: (next: number) => void;
   activeNotes: Set<number>;
   highlightedNotes?: Set<number>;
@@ -14,15 +14,16 @@ interface PerformanceKeyboardProps {
   onToggleChordMode: () => void;
   scaleLock: string;
   onScaleLockChange: (scale: string) => void;
+  variant?: 'full' | 'console';
 }
 
 const WHITE_OFFSETS = [0, 2, 4, 5, 7, 9, 11];
 const BLACK_MAP: Record<number, number> = {
-  0: 1, // C -> C#
-  2: 3, // D -> D#
-  5: 6, // F -> F#
-  7: 8, // G -> G#
-  9: 10, // A -> A#
+  0: 1,
+  2: 3,
+  5: 6,
+  7: 8,
+  9: 10,
 };
 
 const QWERTY_HINTS: Record<number, string> = {
@@ -76,15 +77,21 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
   onToggleChordMode,
   scaleLock,
   onScaleLockChange,
+  variant = 'full',
 }) => {
   const pointerNotesRef = useRef<Map<number, number>>(new Map());
-  const startMidi = (baseOctave + 1) * 12; // e.g., octave 3 -> MIDI 48 (C3)
+  const startMidi = (baseOctave + 1) * 12;
 
   const whiteKeys = useMemo(() => {
-    const keys: { midi: number; offset: number; hasBlackRight: boolean; blackMidi?: number; blackOffset?: number }[] = [];
+    const keys: {
+      midi: number;
+      offset: number;
+      hasBlackRight: boolean;
+      blackMidi?: number;
+      blackOffset?: number;
+    }[] = [];
     for (let oct = 0; oct < 2; oct++) {
       for (const semi of WHITE_OFFSETS) {
-        const offset = oct * 7 + WHITE_OFFSETS.indexOf(semi);
         const midi = startMidi + oct * 12 + semi;
         const blackSemi = BLACK_MAP[semi];
         keys.push({
@@ -94,10 +101,8 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
           blackMidi: blackSemi !== undefined ? startMidi + oct * 12 + blackSemi : undefined,
           blackOffset: blackSemi !== undefined ? oct * 12 + blackSemi : undefined,
         });
-        void offset;
       }
     }
-    // Top C
     keys.push({
       midi: startMidi + 24,
       offset: 24,
@@ -135,43 +140,113 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
     }
   };
 
+  const keyBed = (
+    <div
+      className={`relative w-full flex gap-[2px] bg-[#000000] p-1 border border-[rgba(236,236,236,0.14)] rounded-[2px] ${
+        variant === 'console' ? 'h-24 sm:h-28' : 'h-36 sm:h-40'
+      }`}
+    >
+      {whiteKeys.map((wk) => {
+        const isActive = activeNotes.has(wk.midi);
+        const isChartHighlighted = highlightedNotes?.has(wk.midi) ?? false;
+        const hint = QWERTY_HINTS[wk.offset];
+
+        return (
+          <div key={wk.midi} className="relative flex-1 h-full">
+            <button
+              type="button"
+              onPointerDown={(e) => handlePointerDown(e, wk.midi)}
+              onPointerUp={(e) => handlePointerUp(e, wk.midi)}
+              onPointerCancel={(e) => handlePointerUp(e, wk.midi)}
+              onPointerLeave={(e) => handlePointerLeave(e, wk.midi)}
+              className={`w-full h-full rounded-b-[2px] flex flex-col justify-end items-center pb-1.5 transition-colors touch-none ${
+                isActive
+                  ? 'bg-[#ff4d00] text-[#0c0c0e]'
+                  : isChartHighlighted
+                    ? 'bg-[#ff4d00]/25 text-[#ececec] ring-2 ring-inset ring-[#ff4d00]'
+                    : 'bg-[#ececec] hover:bg-white text-[#0c0c0e]/70'
+              }`}
+              aria-label={`Play ${midiNoteToName(wk.midi)}`}
+            >
+              <span className="text-[9px] font-mono font-semibold leading-none">
+                {wk.offset % 12 === 0 ? midiNoteToName(wk.midi) : ''}
+              </span>
+              {hint && (
+                <span className="text-[9px] font-mono opacity-60 mt-0.5 leading-none">{hint}</span>
+              )}
+            </button>
+
+            {wk.hasBlackRight && wk.blackMidi !== undefined && (
+              <button
+                type="button"
+                onPointerDown={(e) => handlePointerDown(e, wk.blackMidi!)}
+                onPointerUp={(e) => handlePointerUp(e, wk.blackMidi!)}
+                onPointerCancel={(e) => handlePointerUp(e, wk.blackMidi!)}
+                onPointerLeave={(e) => handlePointerLeave(e, wk.blackMidi!)}
+                className={`absolute top-0 right-0 translate-x-1/2 z-10 w-[62%] h-[60%] rounded-b-[2px] border border-[rgba(236,236,236,0.18)] flex flex-col justify-end items-center pb-1 transition-colors touch-none ${
+                  activeNotes.has(wk.blackMidi)
+                    ? 'bg-[#ff4d00] text-[#0c0c0e] border-[#ff4d00]'
+                    : highlightedNotes?.has(wk.blackMidi)
+                      ? 'bg-[#ff4d00]/55 text-[#ececec] border-[#ff4d00]'
+                      : 'bg-[#000000] hover:bg-[#1f1f24] text-[rgba(236,236,236,0.5)]'
+                }`}
+                aria-label={`Play ${midiNoteToName(wk.blackMidi)}`}
+              >
+                {wk.blackOffset !== undefined && QWERTY_HINTS[wk.blackOffset] && (
+                  <span className="text-[8px] font-mono leading-none">
+                    {QWERTY_HINTS[wk.blackOffset]}
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  if (variant === 'console') {
+    return <div className="select-none">{keyBed}</div>;
+  }
+
   return (
-    <div className="bg-[#12151C] border border-[#232732] rounded-xl p-4 flex flex-col gap-3 select-none">
-      {/* Keyboard Toolbar */}
+    <div className="bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-4 flex flex-col gap-3 select-none">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs text-neutral-400 mr-1">Octave</span>
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)] mr-1">
+              Octave
+            </span>
             <button
               type="button"
               onClick={() => onOctaveChange(Math.max(1, baseOctave - 1))}
-              className="w-8 h-8 rounded-md bg-[#191D27] border border-[#2A303E] text-sm font-mono hover:border-neutral-500 text-neutral-200 transition-colors"
+              className="w-8 h-8 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] text-xs font-mono hover:border-[#ececec] text-[#ececec] transition-colors"
               aria-label="Octave Down"
             >
               -
             </button>
-            <span className="w-10 text-center text-xs font-mono text-amber-400">
+            <span className="w-10 text-center text-xs font-mono font-semibold text-[#ff4d00] tabular-nums">
               C{baseOctave}
             </span>
             <button
               type="button"
               onClick={() => onOctaveChange(Math.min(5, baseOctave + 1))}
-              className="w-8 h-8 rounded-md bg-[#191D27] border border-[#2A303E] text-sm font-mono hover:border-neutral-500 text-neutral-200 transition-colors"
+              className="w-8 h-8 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] text-xs font-mono hover:border-[#ececec] text-[#ececec] transition-colors"
               aria-label="Octave Up"
             >
               +
             </button>
           </div>
 
-          <div className="h-4 w-px bg-[#262B36]" />
+          <div className="h-4 w-px bg-[rgba(236,236,236,0.12)]" />
 
           <button
             type="button"
             onClick={onToggleSustain}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-3 py-1.5 rounded-[2px] font-mono text-[11px] uppercase tracking-[0.06em] border transition-colors whitespace-nowrap shrink-0 ${
               sustainOn
-                ? 'bg-amber-500/15 border-amber-500/60 text-amber-300'
-                : 'bg-[#191D27] border-[#2A303E] text-neutral-300 hover:border-neutral-500'
+                ? 'bg-[#ff4d00] border-[#ff4d00] text-[#0c0c0e] font-semibold'
+                : 'bg-[#0c0c0e] border-[rgba(236,236,236,0.12)] text-[rgba(236,236,236,0.75)] hover:border-[#ececec]'
             }`}
           >
             Sustain Hold {sustainOn ? 'On' : 'Off'}
@@ -180,10 +255,10 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
           <button
             type="button"
             onClick={onToggleChordMode}
-            className={`px-3 py-1.5 rounded-md text-xs font-medium border transition-colors whitespace-nowrap shrink-0 ${
+            className={`px-3 py-1.5 rounded-[2px] font-mono text-[11px] uppercase tracking-[0.06em] border transition-colors whitespace-nowrap shrink-0 ${
               chordMode
-                ? 'bg-amber-500/15 border-amber-500/60 text-amber-300'
-                : 'bg-[#191D27] border-[#2A303E] text-neutral-300 hover:border-neutral-500'
+                ? 'bg-[#ff4d00] border-[#ff4d00] text-[#0c0c0e] font-semibold'
+                : 'bg-[#0c0c0e] border-[rgba(236,236,236,0.12)] text-[rgba(236,236,236,0.75)] hover:border-[#ececec]'
             }`}
           >
             1-Key Chords {chordMode ? 'On' : 'Off'}
@@ -191,14 +266,17 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          <label htmlFor="scale-lock-select" className="text-xs text-neutral-400">
+          <label
+            htmlFor="scale-lock-select"
+            className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]"
+          >
             Scale Lock
           </label>
           <select
             id="scale-lock-select"
             value={scaleLock}
             onChange={(e) => onScaleLockChange(e.target.value)}
-            className="bg-[#191D27] border border-[#2A303E] rounded-md px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-amber-500"
+            className="bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] px-2.5 py-1.5 font-mono text-xs text-[#ececec] focus:outline-none focus:border-[#ff4d00]"
           >
             {Object.keys(SCALE_INTERVALS).map((sc) => (
               <option key={sc} value={sc}>
@@ -209,67 +287,7 @@ export const PerformanceKeyboard: React.FC<PerformanceKeyboardProps> = ({
         </div>
       </div>
 
-      {/* Interactive 2-Octave + C Piano Bed */}
-      <div className="relative h-36 sm:h-40 w-full flex gap-[2px] bg-[#0B0D11] p-1.5 rounded-lg border border-[#20242E]">
-        {whiteKeys.map((wk) => {
-          const isActive = activeNotes.has(wk.midi);
-          const isChartHighlighted = highlightedNotes?.has(wk.midi) ?? false;
-          const hint = QWERTY_HINTS[wk.offset];
-
-          return (
-            <div key={wk.midi} className="relative flex-1 h-full">
-              <button
-                type="button"
-                onPointerDown={(e) => handlePointerDown(e, wk.midi)}
-                onPointerUp={(e) => handlePointerUp(e, wk.midi)}
-                onPointerCancel={(e) => handlePointerUp(e, wk.midi)}
-                onPointerLeave={(e) => handlePointerLeave(e, wk.midi)}
-                className={`w-full h-full rounded-b-md flex flex-col justify-end items-center pb-2 transition-colors touch-none ${
-                  isActive
-                    ? 'bg-amber-400 text-[#0B0D11]'
-                    : isChartHighlighted
-                      ? 'bg-amber-100 text-[#0B0D11] ring-2 ring-inset ring-amber-500'
-                      : 'bg-[#E5E7EB] hover:bg-[#F3F4F6] text-neutral-600'
-                }`}
-                aria-label={`Play ${midiNoteToName(wk.midi)}`}
-              >
-                <span className="text-[10px] font-mono font-semibold leading-none">
-                  {wk.offset % 12 === 0 ? midiNoteToName(wk.midi) : ''}
-                </span>
-                {hint && (
-                  <span className="text-[10px] font-mono opacity-60 mt-1 leading-none">
-                    {hint}
-                  </span>
-                )}
-              </button>
-
-              {wk.hasBlackRight && wk.blackMidi !== undefined && (
-                <button
-                  type="button"
-                  onPointerDown={(e) => handlePointerDown(e, wk.blackMidi!)}
-                  onPointerUp={(e) => handlePointerUp(e, wk.blackMidi!)}
-                  onPointerCancel={(e) => handlePointerUp(e, wk.blackMidi!)}
-                  onPointerLeave={(e) => handlePointerLeave(e, wk.blackMidi!)}
-                  className={`absolute top-0 right-0 translate-x-1/2 z-10 w-[62%] h-[60%] rounded-b-md border border-[#0B0D11] flex flex-col justify-end items-center pb-1.5 transition-colors touch-none ${
-                    activeNotes.has(wk.blackMidi)
-                      ? 'bg-amber-500 text-[#0B0D11]'
-                      : highlightedNotes?.has(wk.blackMidi)
-                        ? 'bg-amber-700 text-amber-100 ring-1 ring-amber-400'
-                        : 'bg-[#191C24] hover:bg-[#252A36] text-neutral-400'
-                  }`}
-                  aria-label={`Play ${midiNoteToName(wk.blackMidi)}`}
-                >
-                  {wk.blackOffset !== undefined && QWERTY_HINTS[wk.blackOffset] && (
-                    <span className="text-[9px] font-mono opacity-75 leading-none">
-                      {QWERTY_HINTS[wk.blackOffset]}
-                    </span>
-                  )}
-                </button>
-              )}
-            </div>
-          );
-        })}
-      </div>
+      {keyBed}
     </div>
   );
 };

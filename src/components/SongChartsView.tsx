@@ -85,7 +85,6 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
   const [activeChordKey, setActiveChordKey] = useState<string | null>(null);
   const [highlightedNotes, setHighlightedNotes] = useState<Set<number>>(new Set());
 
-  // On-demand any band/song generator
   const [bandQuery, setBandQuery] = useState('');
   const [generatingBand, setGeneratingBand] = useState(false);
   const [bandError, setBandError] = useState<string | null>(null);
@@ -229,32 +228,35 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
 
   return (
     <div className="flex flex-col gap-5">
-      {/* Add Any Band / Song + Filter & Search Bar */}
-      <div className="bg-[#12151C] border border-[#232732] rounded-xl p-4 flex flex-col gap-3.5">
+      {/* Add Any Band / Song + Genre Filter & Search Bar */}
+      <div className="bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-4 flex flex-col gap-3.5">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="relative w-full sm:w-72">
-            <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-3 top-1/2 -translate-y-1/2" />
+            <Search className="w-3.5 h-3.5 text-[rgba(236,236,236,0.45)] absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Search band, song, key, sound..."
-              className="w-full h-9 pl-9 pr-3 rounded-lg bg-[#0D1016] border border-[#252A38] text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
+              className="w-full h-9 pl-9 pr-3 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] text-xs text-[#ececec] placeholder:text-[rgba(236,236,236,0.4)] focus:outline-none focus:border-[#ff4d00]"
             />
           </div>
 
-          <form onSubmit={handleGenerateBandChart} className="flex flex-wrap items-center gap-2 flex-1 sm:justify-end">
+          <form
+            onSubmit={handleGenerateBandChart}
+            className="flex flex-wrap items-center gap-2 flex-1 sm:justify-end"
+          >
             <input
               type="text"
               value={bandQuery}
               onChange={(e) => setBandQuery(e.target.value)}
               placeholder="Add any band or song (e.g. Arctic Monkeys, Take On Me)..."
-              className="h-9 px-3 rounded-lg bg-[#0D1016] border border-[#252A38] text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-amber-500 w-full sm:w-72"
+              className="h-9 px-3 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] text-xs text-[#ececec] placeholder:text-[rgba(236,236,236,0.4)] focus:outline-none focus:border-[#ff4d00] w-full sm:w-72"
             />
             <button
               type="submit"
               disabled={generatingBand || !bandQuery.trim()}
-              className="h-9 px-3.5 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D11] text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
+              className="h-9 px-3.5 rounded-[2px] bg-[#ff4d00] hover:bg-[#ff621f] disabled:opacity-50 disabled:cursor-not-allowed text-[#0c0c0e] font-mono text-[11px] font-bold uppercase tracking-[0.06em] flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0"
             >
               {generatingBand ? (
                 <>
@@ -272,21 +274,21 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
         </div>
 
         {bandError && (
-          <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs text-red-300">
+          <div className="rounded-[2px] border border-[#ff4d00] bg-[#ff4d00]/10 px-3 py-2 text-xs text-[#ececec]">
             {bandError}
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-1 bg-[#0D1016] p-1 rounded-lg border border-[#222631]">
+        <div className="flex flex-wrap items-center gap-1 bg-[#0c0c0e] p-1 rounded-[2px] border border-[rgba(236,236,236,0.12)]">
           {GENRES.map((genre) => (
             <button
               key={genre}
               type="button"
               onClick={() => setGenreFilter(genre)}
-              className={`px-3 py-1.5 rounded-md text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+              className={`px-3 py-1.5 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.06em] transition-colors whitespace-nowrap shrink-0 ${
                 genreFilter === genre
-                  ? 'bg-[#252A38] text-amber-400'
-                  : 'text-neutral-400 hover:text-neutral-200'
+                  ? 'bg-[#ff4d00] text-[#0c0c0e] font-semibold'
+                  : 'text-[rgba(236,236,236,0.54)] hover:text-[#ececec]'
               }`}
             >
               {genre}
@@ -297,21 +299,26 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
 
       {/* Main Split: Band & Song Directory (Left) + Inbuilt Chord Chart & Patch Loader (Right) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 items-start">
-        <div className="lg:col-span-4 bg-[#12151C] border border-[#232732] rounded-xl overflow-hidden">
-          <div className="px-4 py-3 border-b border-[#222631] flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-neutral-100">All Bands &amp; Song Sounds</h2>
-            <span className="text-xs font-mono text-neutral-400">{filteredSongs.length}</span>
+        <div className="lg:col-span-4 bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] overflow-hidden">
+          <div className="px-4 py-3 border-b border-[rgba(236,236,236,0.12)] flex items-center justify-between">
+            <h2 className="font-display text-xs font-extrabold uppercase tracking-[0.06em] text-[#ececec]">
+              All Bands &amp; Song Sounds
+            </h2>
+            <span className="font-mono text-xs text-[#ff4d00] tabular-nums">
+              {filteredSongs.length}
+            </span>
           </div>
 
           {filteredSongs.length === 0 ? (
-            <div className="p-6 text-center text-xs text-neutral-400 flex flex-col gap-2">
+            <div className="p-6 text-center text-xs text-[rgba(236,236,236,0.54)] flex flex-col gap-2">
               <span>No band or song matched your search.</span>
-              <span className="text-neutral-500">
-                Use &ldquo;Add Band Chart&rdquo; above to generate any band&apos;s sound and chord chart on demand.
+              <span>
+                Use &ldquo;Add Band Chart&rdquo; above to generate any band&apos;s sound and chord
+                chart on demand.
               </span>
             </div>
           ) : (
-            <div className="divide-y divide-[#1E222C] max-h-[540px] overflow-y-auto">
+            <div className="divide-y divide-[rgba(236,236,236,0.08)] max-h-[540px] overflow-y-auto">
               {filteredSongs.map((song) => {
                 const isSelected = song.id === selectedSong.id;
                 const isLoaded = activePatchId === song.patch.id;
@@ -320,26 +327,30 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
                     key={song.id}
                     type="button"
                     onClick={() => handleSelectSong(song)}
-                    className={`w-full text-left px-4 py-3 transition-colors flex flex-col gap-0.5 ${
-                      isSelected ? 'bg-[#1A1F2B]' : 'hover:bg-[#161A23]'
+                    className={`w-full text-left px-4 py-3 transition-colors flex flex-col gap-0.5 border-l-2 ${
+                      isSelected
+                        ? 'bg-[#0c0c0e] border-l-[#ff4d00]'
+                        : 'border-l-transparent hover:bg-[#0c0c0e]/60'
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold text-neutral-100 truncate">
+                      <span className="text-sm font-semibold text-[#ececec] truncate">
                         {song.bandName}
                       </span>
                       {isLoaded && (
-                        <span className="text-[11px] font-medium text-amber-400 shrink-0">
+                        <span className="font-mono text-[10px] uppercase tracking-[0.08em] text-[#ff4d00] shrink-0">
                           Loaded
                         </span>
                       )}
                     </div>
-                    <span className="text-xs text-neutral-300 truncate">{song.title}</span>
-                    <div className="flex items-center gap-1.5 text-[11px] text-neutral-400 font-mono mt-0.5">
+                    <span className="text-xs text-[rgba(236,236,236,0.75)] truncate">
+                      {song.title}
+                    </span>
+                    <div className="flex items-center gap-1.5 text-[11px] text-[rgba(236,236,236,0.48)] font-mono mt-0.5 tabular-nums">
                       <span>{song.bpm} BPM</span>
-                      <span aria-hidden="true">·</span>
+                      <span aria-hidden="true">/</span>
                       <span>{song.musicalKey}</span>
-                      <span aria-hidden="true">·</span>
+                      <span aria-hidden="true">/</span>
                       <span className="font-sans truncate">{song.genre}</span>
                     </div>
                   </button>
@@ -350,44 +361,46 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
         </div>
 
         {/* Inbuilt Chord Chart & Performance Sheet */}
-        <div className="lg:col-span-8 bg-[#12151C] border border-[#232732] rounded-xl p-5 flex flex-col gap-5">
-          <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[#222631]">
+        <div className="lg:col-span-8 bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-5 flex flex-col gap-5">
+          <div className="flex flex-wrap items-start justify-between gap-4 pb-4 border-b border-[rgba(236,236,236,0.12)]">
             <div className="flex flex-col gap-1">
-              <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <span className="text-neutral-200 font-medium">{selectedSong.bandName}</span>
-                <span aria-hidden="true">·</span>
+              <div className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.08em] text-[rgba(236,236,236,0.54)]">
+                <span className="text-[#ececec] font-semibold">{selectedSong.bandName}</span>
+                <span aria-hidden="true">/</span>
                 <span>{selectedSong.genre}</span>
-                <span aria-hidden="true">·</span>
-                <span className="font-mono">{selectedSong.bpm} BPM</span>
-                <span aria-hidden="true">·</span>
+                <span aria-hidden="true">/</span>
+                <span className="tabular-nums">{selectedSong.bpm} BPM</span>
+                <span aria-hidden="true">/</span>
                 <span>{selectedSong.timeSignature}</span>
               </div>
-              <h2 className="text-2xl font-display font-semibold text-neutral-100">
+              <h2 className="text-2xl font-display font-extrabold uppercase tracking-[-0.02em] text-[#ececec]">
                 {selectedSong.title}
               </h2>
-              <p className="text-xs text-neutral-300">
+              <p className="text-xs text-[rgba(236,236,236,0.72)]">
                 {selectedSong.artistOrStyle} —{' '}
-                <span className="text-amber-400">{selectedSong.soundRole}</span>
+                <span className="text-[#ff4d00] font-medium">{selectedSong.soundRole}</span>
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
-              <div className="flex items-center gap-1.5 bg-[#0D1016] border border-[#242936] rounded-lg px-2.5 py-1.5">
-                <span className="text-xs text-neutral-400 mr-1">Transpose</span>
+              <div className="flex items-center gap-1.5 bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] rounded-[2px] px-2.5 py-1.5">
+                <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.54)] mr-1">
+                  Transpose
+                </span>
                 <button
                   type="button"
                   onClick={() => setTranspose((t) => Math.max(-6, t - 1))}
-                  className="w-6 h-6 rounded hover:bg-[#1E2330] text-neutral-200 font-mono text-xs"
+                  className="w-6 h-6 rounded-[2px] hover:bg-[#161618] text-[#ececec] font-mono text-xs"
                 >
                   -
                 </button>
-                <span className="w-8 text-center font-mono text-xs text-amber-400">
+                <span className="w-8 text-center font-mono text-xs text-[#ff4d00] tabular-nums">
                   {transpose > 0 ? `+${transpose}` : transpose}
                 </span>
                 <button
                   type="button"
                   onClick={() => setTranspose((t) => Math.min(6, t + 1))}
-                  className="w-6 h-6 rounded hover:bg-[#1E2330] text-neutral-200 font-mono text-xs"
+                  className="w-6 h-6 rounded-[2px] hover:bg-[#161618] text-[#ececec] font-mono text-xs"
                 >
                   +
                 </button>
@@ -396,7 +409,7 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
               <button
                 type="button"
                 onClick={() => onLoadSongPatch(selectedSong.patch, selectedSong.bpm)}
-                className="h-9 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 text-[#0B0D11] text-xs font-semibold flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
+                className="h-9 px-4 rounded-[2px] bg-[#ff4d00] hover:bg-[#ff621f] text-[#0c0c0e] font-mono text-[11px] font-bold uppercase tracking-[0.06em] flex items-center gap-2 transition-colors whitespace-nowrap shrink-0"
               >
                 <Music2 className="w-3.5 h-3.5" />
                 <span>
@@ -414,7 +427,7 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
                     setSelectedSongId(TRENDING_SONGS[0].id);
                   }}
                   aria-label="Remove custom band chart"
-                  className="h-9 w-9 rounded-lg bg-[#191D27] border border-[#2A303E] hover:border-red-500/60 text-neutral-400 hover:text-red-400 flex items-center justify-center transition-colors"
+                  className="h-9 w-9 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] hover:border-[#ff4d00] text-[rgba(236,236,236,0.54)] hover:text-[#ff4d00] flex items-center justify-center transition-colors"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
                 </button>
@@ -422,9 +435,9 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
             </div>
           </div>
 
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-neutral-300 bg-[#0D1016] border border-[#222631] rounded-lg px-4 py-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-[rgba(236,236,236,0.75)] bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] px-4 py-3">
             <p className="leading-relaxed">{selectedSong.performanceNotes}</p>
-            <span className="font-mono text-neutral-400 shrink-0">
+            <span className="font-mono text-[11px] uppercase text-[#ff4d00] shrink-0">
               Key: {transposeChordSymbol(selectedSong.musicalKey, transpose)}
             </span>
           </div>
@@ -434,15 +447,17 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
               const isPlaying = playingSectionIdx === sIdx;
               return (
                 <div key={section.name} className="flex flex-col gap-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-neutral-200">{section.name}</h3>
+                  <div className="flex items-center justify-between border-b border-[rgba(236,236,236,0.1)] pb-2">
+                    <h3 className="font-display text-xs font-extrabold uppercase tracking-[0.06em] text-[#ececec]">
+                      {section.name}
+                    </h3>
                     <button
                       type="button"
                       onClick={() => startSectionPlayback(sIdx)}
-                      className={`h-8 px-3 rounded-md border text-xs font-medium flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
+                      className={`h-8 px-3 rounded-[2px] border font-mono text-[10px] uppercase tracking-[0.06em] flex items-center gap-1.5 transition-colors whitespace-nowrap shrink-0 ${
                         isPlaying
-                          ? 'bg-amber-500 text-[#0B0D11] border-amber-400 font-semibold'
-                          : 'bg-[#191D27] border-[#2A303E] text-neutral-200 hover:border-amber-500/60'
+                          ? 'bg-[#ff4d00] text-[#0c0c0e] border-[#ff4d00] font-bold'
+                          : 'bg-[#0c0c0e] border-[rgba(236,236,236,0.14)] text-[#ececec] hover:border-[#ff4d00]'
                       }`}
                     >
                       {isPlaying ? <Square className="w-3 h-3" /> : <Play className="w-3 h-3" />}
@@ -468,25 +483,25 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
                             }
                             void auditionChord(chord, keyId);
                           }}
-                          className={`p-3.5 rounded-lg border text-left transition-colors flex flex-col justify-between gap-2 min-h-[92px] ${
+                          className={`p-3.5 rounded-[2px] border text-left transition-colors flex flex-col justify-between gap-2 min-h-[92px] ${
                             isActive
-                              ? 'bg-amber-500/15 border-amber-500 text-neutral-100'
-                              : 'bg-[#0D1016] border-[#242936] hover:border-neutral-500 text-neutral-200'
+                              ? 'bg-[#ff4d00]/15 border-[#ff4d00] text-[#ececec]'
+                              : 'bg-[#0c0c0e] border-[rgba(236,236,236,0.12)] hover:border-[#ececec] text-[#ececec]'
                           }`}
                         >
                           <div className="flex items-baseline justify-between gap-2 w-full">
-                            <span className="text-lg font-display font-semibold text-neutral-100">
+                            <span className="text-lg font-display font-extrabold text-[#ececec]">
                               {transposedSymbol}
                             </span>
-                            <span className="text-[11px] font-mono text-amber-400">
+                            <span className="text-[11px] font-mono text-[#ff4d00]">
                               {chord.roman}
                             </span>
                           </div>
                           <div className="flex flex-col gap-0.5">
-                            <span className="text-[11px] font-mono text-neutral-400 truncate">
+                            <span className="text-[11px] font-mono text-[rgba(236,236,236,0.6)] truncate">
                               {noteNames}
                             </span>
-                            <span className="text-[10px] text-neutral-500 font-mono">
+                            <span className="text-[10px] text-[rgba(236,236,236,0.42)] font-mono">
                               {chord.beats} beats · Click to play
                             </span>
                           </div>

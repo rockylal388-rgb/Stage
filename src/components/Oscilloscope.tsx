@@ -3,9 +3,13 @@ import { synthEngine } from '../audio/synthEngine';
 
 interface OscilloscopeProps {
   audioReady: boolean;
+  heightClass?: string;
 }
 
-export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
+export const Oscilloscope: React.FC<OscilloscopeProps> = ({
+  audioReady,
+  heightClass = 'h-36',
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [mode, setMode] = useState<'wave' | 'spectrum'>('wave');
 
@@ -23,8 +27,8 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
     const draw = () => {
       const dpr = window.devicePixelRatio || 1;
       const rect = canvas.getBoundingClientRect();
-      const targetW = Math.max(300, Math.floor(rect.width * dpr));
-      const targetH = Math.max(100, Math.floor(rect.height * dpr));
+      const targetW = Math.max(240, Math.floor(rect.width * dpr));
+      const targetH = Math.max(90, Math.floor(rect.height * dpr));
       if (canvas.width !== targetW || canvas.height !== targetH) {
         canvas.width = targetW;
         canvas.height = targetH;
@@ -33,11 +37,11 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
       const w = canvas.width;
       const h = canvas.height;
 
-      ctx.fillStyle = '#0D1016';
+      ctx.fillStyle = '#000000';
       ctx.fillRect(0, 0, w, h);
 
-      // Subtle hardware graticule grid
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.045)';
+      // Hardware graticule grid
+      ctx.strokeStyle = 'rgba(236, 236, 236, 0.06)';
       ctx.lineWidth = 1;
       const cols = 8;
       const rows = 4;
@@ -56,8 +60,7 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
         ctx.stroke();
       }
 
-      // Center zero line
-      ctx.strokeStyle = 'rgba(255, 255, 255, 0.09)';
+      ctx.strokeStyle = 'rgba(236, 236, 236, 0.12)';
       ctx.beginPath();
       ctx.moveTo(0, h / 2);
       ctx.lineTo(w, h / 2);
@@ -68,10 +71,9 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
         if (mode === 'wave') {
           analyser.getByteTimeDomainData(timeData);
           ctx.lineWidth = 2 * dpr;
-          ctx.strokeStyle = '#F59E0B';
+          ctx.strokeStyle = '#ff4d00';
           ctx.beginPath();
 
-          // Find rising zero crossing for rock-steady waveform lock
           let trigger = 0;
           for (let i = 1; i < bufferLength / 2; i++) {
             if (timeData[i - 1] < 128 && timeData[i] >= 128) {
@@ -93,24 +95,22 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
           ctx.stroke();
         } else {
           analyser.getByteFrequencyData(freqData);
-          const barCount = 48;
+          const barCount = 40;
           const barW = w / barCount;
           for (let i = 0; i < barCount; i++) {
-            // Logarithmic-ish bin sampling for musical frequency spread
             const binIndex = Math.min(
               freqData.length - 1,
               Math.floor(Math.pow(i / barCount, 1.55) * (freqData.length * 0.45))
             );
             const val = freqData[binIndex] / 255;
             const barH = val * (h * 0.88);
-            ctx.fillStyle = val > 0.78 ? '#F59E0B' : 'rgba(245, 158, 11, 0.55)';
+            ctx.fillStyle = val > 0.72 ? '#ff4d00' : 'rgba(255, 77, 0, 0.55)';
             ctx.fillRect(i * barW + 1 * dpr, h - barH, Math.max(2, barW - 3 * dpr), barH);
           }
         }
       } else {
-        // Flat idle trace
         ctx.lineWidth = 1.5 * dpr;
-        ctx.strokeStyle = 'rgba(245, 158, 11, 0.35)';
+        ctx.strokeStyle = 'rgba(255, 77, 0, 0.4)';
         ctx.beginPath();
         ctx.moveTo(0, h / 2);
         ctx.lineTo(w, h / 2);
@@ -127,29 +127,31 @@ export const Oscilloscope: React.FC<OscilloscopeProps> = ({ audioReady }) => {
   return (
     <div className="flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-neutral-400">Output Signal Monitor</span>
-        <div className="flex items-center gap-1 bg-[#161922] p-0.5 rounded-md border border-[#242936]">
+        <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[rgba(236,236,236,0.52)]">
+          Output Monitor
+        </span>
+        <div className="flex items-center gap-1 bg-[#0c0c0e] p-0.5 border border-[rgba(236,236,236,0.12)]">
           <button
             type="button"
             onClick={() => setMode('wave')}
-            className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
-              mode === 'wave' ? 'bg-[#252A38] text-amber-400' : 'text-neutral-400 hover:text-neutral-200'
+            className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors whitespace-nowrap shrink-0 ${
+              mode === 'wave' ? 'bg-[#ff4d00] text-[#0c0c0e] font-semibold' : 'text-[rgba(236,236,236,0.6)] hover:text-[#ececec]'
             }`}
           >
-            Waveform
+            Wave
           </button>
           <button
             type="button"
             onClick={() => setMode('spectrum')}
-            className={`px-2.5 py-1 text-xs font-medium rounded transition-colors whitespace-nowrap shrink-0 ${
-              mode === 'spectrum' ? 'bg-[#252A38] text-amber-400' : 'text-neutral-400 hover:text-neutral-200'
+            className={`px-2 py-0.5 font-mono text-[10px] uppercase tracking-wider transition-colors whitespace-nowrap shrink-0 ${
+              mode === 'spectrum' ? 'bg-[#ff4d00] text-[#0c0c0e] font-semibold' : 'text-[rgba(236,236,236,0.6)] hover:text-[#ececec]'
             }`}
           >
-            Spectrum
+            Spec
           </button>
         </div>
       </div>
-      <div className="relative h-28 w-full rounded-lg overflow-hidden border border-[#232732] bg-[#0D1016]">
+      <div className={`relative ${heightClass} w-full overflow-hidden border border-[rgba(236,236,236,0.12)] bg-black`}>
         <canvas ref={canvasRef} className="w-full h-full block" />
       </div>
     </div>

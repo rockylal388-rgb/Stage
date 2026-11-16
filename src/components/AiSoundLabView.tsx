@@ -26,8 +26,26 @@ interface AiSoundLabViewProps {
   onScaleLockChange: (scale: string) => void;
 }
 
-const ROLES: ('Any' | PatchCategory)[] = ['Any', 'Bass', 'Lead', 'Pad', 'Pluck', 'Keys', 'Brass', 'FX'];
-const LIBRARY_CATEGORIES: ('All' | PatchCategory)[] = ['All', 'Bass', 'Lead', 'Pad', 'Pluck', 'Keys', 'Brass', 'FX'];
+const ROLES: ('Any' | PatchCategory)[] = [
+  'Any',
+  'Bass',
+  'Lead',
+  'Pad',
+  'Pluck',
+  'Keys',
+  'Brass',
+  'FX',
+];
+const LIBRARY_CATEGORIES: ('All' | PatchCategory)[] = [
+  'All',
+  'Bass',
+  'Lead',
+  'Pad',
+  'Pluck',
+  'Keys',
+  'Brass',
+  'FX',
+];
 const PATCH_CATEGORIES: PatchCategory[] = ['Bass', 'Lead', 'Pad', 'Pluck', 'Keys', 'Brass', 'FX'];
 
 const EXAMPLE_PROMPTS = [
@@ -118,7 +136,6 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
       setSuggestedChords(nextChords);
       onLoadPatch(nextPatch);
 
-      // Immediately audition the first suggested chord or an A minor triad
       if (nextChords.length > 0 && nextChords[0].midiNotes.length > 0) {
         await synthEngine.playChord(nextChords[0].midiNotes, 1000, 96);
       } else {
@@ -149,20 +166,23 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
         {/* Left: AI Sound Designer Prompt Form */}
         <form
           onSubmit={handleGenerate}
-          className="lg:col-span-5 bg-[#12151C] border border-[#232732] rounded-xl p-5 flex flex-col gap-4"
+          className="lg:col-span-5 bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-5 flex flex-col gap-4"
         >
-          <div className="flex flex-col gap-1">
-            <h2 className="text-lg font-display font-semibold text-neutral-100">
+          <div className="flex flex-col gap-1 border-b border-[rgba(236,236,236,0.12)] pb-3">
+            <h2 className="font-display text-sm font-extrabold uppercase tracking-[0.06em] text-[#ececec]">
               AI Sound Designer
             </h2>
-            <p className="text-xs text-neutral-400 leading-relaxed">
+            <p className="text-xs text-[rgba(236,236,236,0.6)] leading-relaxed">
               Describe the timbre, texture, or song vibe you want. The engine programs oscillators,
               filters, envelopes, LFO modulation, and stage FX directly into your live synth.
             </p>
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="ai-sound-prompt" className="text-xs font-medium text-neutral-300">
+            <label
+              htmlFor="ai-sound-prompt"
+              className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]"
+            >
               Sound Description
             </label>
             <textarea
@@ -171,22 +191,24 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
               value={prompt}
               onChange={(e) => setPrompt(e.target.value)}
               placeholder="e.g., Lush warm analog synth pad like an 80s arena ballad with slow filter swell and tape chorus..."
-              className="w-full rounded-lg bg-[#0D1016] border border-[#262B38] p-3 text-sm text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-amber-500 resize-none"
+              className="w-full rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] p-3 text-sm text-[#ececec] placeholder:text-[rgba(236,236,236,0.38)] focus:outline-none focus:border-[#ff4d00] resize-none"
             />
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <span className="text-xs font-medium text-neutral-300">Instrument Role</span>
-            <div className="flex flex-wrap gap-1 bg-[#0D1016] p-1 rounded-lg border border-[#222631]">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]">
+              Instrument Role
+            </span>
+            <div className="flex flex-wrap gap-1 bg-[#0c0c0e] p-1 rounded-[2px] border border-[rgba(236,236,236,0.12)]">
               {ROLES.map((r) => (
                 <button
                   key={r}
                   type="button"
                   onClick={() => setRole(r)}
-                  className={`px-2.5 py-1 rounded text-xs font-medium transition-colors whitespace-nowrap shrink-0 ${
+                  className={`px-2.5 py-1 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.06em] transition-colors whitespace-nowrap shrink-0 ${
                     role === r
-                      ? 'bg-[#252A38] text-amber-400'
-                      : 'text-neutral-400 hover:text-neutral-200'
+                      ? 'bg-[#ff4d00] text-[#0c0c0e] font-semibold'
+                      : 'text-[rgba(236,236,236,0.54)] hover:text-[#ececec]'
                   }`}
                 >
                   {r}
@@ -196,7 +218,10 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
           </div>
 
           <div className="flex flex-col gap-1.5">
-            <label htmlFor="ai-mood-input" className="text-xs font-medium text-neutral-300">
+            <label
+              htmlFor="ai-mood-input"
+              className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]"
+            >
               Genre or Venue Context (Optional)
             </label>
             <input
@@ -205,12 +230,12 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
               value={mood}
               onChange={(e) => setMood(e.target.value)}
               placeholder="e.g., Festival mainstage, intimate indie set, dark club"
-              className="h-9 px-3 rounded-lg bg-[#0D1016] border border-[#262B38] text-xs text-neutral-100 placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
+              className="h-9 px-3 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] text-xs text-[#ececec] placeholder:text-[rgba(236,236,236,0.38)] focus:outline-none focus:border-[#ff4d00]"
             />
           </div>
 
           {error && (
-            <div className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2.5 text-xs text-red-300">
+            <div className="rounded-[2px] border border-[#ff4d00] bg-[#ff4d00]/10 px-3 py-2.5 text-xs text-[#ececec]">
               {error}
             </div>
           )}
@@ -218,7 +243,7 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
           <button
             type="submit"
             disabled={loading || !prompt.trim()}
-            className="h-10 px-4 rounded-lg bg-amber-500 hover:bg-amber-400 disabled:opacity-50 disabled:cursor-not-allowed text-[#0B0D11] text-sm font-semibold flex items-center justify-center gap-2 transition-colors"
+            className="h-10 px-4 rounded-[2px] bg-[#ff4d00] hover:bg-[#ff621f] disabled:opacity-50 disabled:cursor-not-allowed text-[#0c0c0e] font-mono text-xs font-bold uppercase tracking-[0.06em] flex items-center justify-center gap-2 transition-colors"
           >
             {loading ? (
               <>
@@ -233,15 +258,17 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
             )}
           </button>
 
-          <div className="pt-2 border-t border-[#222631] flex flex-col gap-2">
-            <span className="text-[11px] font-medium text-neutral-400">Try a quick prompt</span>
+          <div className="pt-2 border-t border-[rgba(236,236,236,0.12)] flex flex-col gap-2">
+            <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]">
+              Try a Quick Prompt
+            </span>
             <div className="flex flex-col gap-1.5">
               {EXAMPLE_PROMPTS.map((ex) => (
                 <button
                   key={ex}
                   type="button"
                   onClick={() => setPrompt(ex)}
-                  className="text-left text-xs text-neutral-400 hover:text-amber-300 transition-colors py-1 border-b border-[#1A1E28] last:border-b-0"
+                  className="text-left text-xs text-[rgba(236,236,236,0.58)] hover:text-[#ff4d00] transition-colors py-1 border-b border-[rgba(236,236,236,0.08)] last:border-b-0"
                 >
                   {ex}
                 </button>
@@ -253,22 +280,22 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
         {/* Right: Generated Patch Architecture & Custom Library */}
         <div className="lg:col-span-7 flex flex-col gap-5">
           {/* Result Card */}
-          <div className="bg-[#12151C] border border-[#232732] rounded-xl p-5 flex flex-col gap-4">
+          <div className="bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-5 flex flex-col gap-4">
             {generatedPatch ? (
               <>
-                <div className="flex flex-wrap items-start justify-between gap-4 pb-3 border-b border-[#222631]">
+                <div className="flex flex-wrap items-start justify-between gap-4 pb-3 border-b border-[rgba(236,236,236,0.12)]">
                   <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2 text-xs text-neutral-400">
-                      <span>{generatedPatch.category}</span>
-                      <span aria-hidden="true">·</span>
-                      <span className="font-mono">{generatedPatch.bpmHint || 120} BPM</span>
-                      <span aria-hidden="true">·</span>
+                    <div className="flex items-center gap-2 font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.54)]">
+                      <span className="text-[#ff4d00]">{generatedPatch.category}</span>
+                      <span aria-hidden="true">/</span>
+                      <span className="tabular-nums">{generatedPatch.bpmHint || 120} BPM</span>
+                      <span aria-hidden="true">/</span>
                       <span>Active in Engine</span>
                     </div>
-                    <h3 className="text-xl font-display font-semibold text-neutral-100">
+                    <h3 className="text-xl font-display font-extrabold uppercase tracking-[-0.01em] text-[#ececec]">
                       {generatedPatch.name}
                     </h3>
-                    <p className="text-xs text-neutral-300 leading-relaxed max-w-xl">
+                    <p className="text-xs text-[rgba(236,236,236,0.68)] leading-relaxed max-w-xl">
                       {generatedPatch.description}
                     </p>
                   </div>
@@ -277,15 +304,15 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                     <button
                       type="button"
                       onClick={() => synthEngine.playChord([57, 60, 64, 67], 1100, 96)}
-                      className="h-9 px-3.5 rounded-lg bg-[#191D27] border border-[#2A303E] hover:border-amber-500/60 text-xs font-medium text-neutral-200 flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                      className="h-9 px-3.5 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] hover:border-[#ececec] font-mono text-[11px] uppercase tracking-[0.06em] text-[#ececec] flex items-center gap-1.5 transition-colors whitespace-nowrap"
                     >
-                      <Play className="w-3.5 h-3.5 text-amber-400" />
+                      <Play className="w-3.5 h-3.5 text-[#ff4d00]" />
                       <span>Audition</span>
                     </button>
                     <button
                       type="button"
                       onClick={handleSaveGenerated}
-                      className="h-9 px-3.5 rounded-lg bg-amber-500 hover:bg-amber-400 text-[#0B0D11] text-xs font-semibold flex items-center gap-1.5 transition-colors whitespace-nowrap"
+                      className="h-9 px-3.5 rounded-[2px] bg-[#ff4d00] hover:bg-[#ff621f] text-[#0c0c0e] font-mono text-[11px] font-bold uppercase tracking-[0.06em] flex items-center gap-1.5 transition-colors whitespace-nowrap"
                     >
                       <BookmarkPlus className="w-3.5 h-3.5" />
                       <span>Save to Library</span>
@@ -295,39 +322,47 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
 
                 {/* Patch Spec Readout */}
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                  <div className="bg-[#0D1016] border border-[#202531] rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-neutral-400">Oscillators</span>
-                    <span className="font-mono text-neutral-100 capitalize">
+                  <div className="bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-3 flex flex-col gap-1">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.5)]">
+                      Oscillators
+                    </span>
+                    <span className="font-mono text-[#ececec] capitalize">
                       {generatedPatch.osc1Wave} + {generatedPatch.osc2Wave}
                     </span>
-                    <span className="font-mono text-[11px] text-neutral-400">
-                      Sub {Math.round(generatedPatch.subLevel * 100)}% · Uni {generatedPatch.unisonDetune}ct
+                    <span className="font-mono text-[11px] text-[rgba(236,236,236,0.54)] tabular-nums">
+                      Sub {Math.round(generatedPatch.subLevel * 100)}% / Uni {generatedPatch.unisonDetune}ct
                     </span>
                   </div>
-                  <div className="bg-[#0D1016] border border-[#202531] rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-neutral-400">Filter</span>
-                    <span className="font-mono text-amber-400">
+                  <div className="bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-3 flex flex-col gap-1">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.5)]">
+                      Filter
+                    </span>
+                    <span className="font-mono text-[#ff4d00] tabular-nums">
                       {Math.round(generatedPatch.filterCutoff)} Hz
                     </span>
-                    <span className="font-mono text-[11px] text-neutral-400">
-                      Q {generatedPatch.filterResonance.toFixed(1)} · {generatedPatch.filterType}
+                    <span className="font-mono text-[11px] text-[rgba(236,236,236,0.54)] tabular-nums">
+                      Q {generatedPatch.filterResonance.toFixed(1)} / {generatedPatch.filterType}
                     </span>
                   </div>
-                  <div className="bg-[#0D1016] border border-[#202531] rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-neutral-400">Envelope (ADSR)</span>
-                    <span className="font-mono text-neutral-100">
-                      A {generatedPatch.ampAttack.toFixed(2)}s · R {generatedPatch.ampRelease.toFixed(2)}s
+                  <div className="bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-3 flex flex-col gap-1">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.5)]">
+                      Envelope (ADSR)
                     </span>
-                    <span className="font-mono text-[11px] text-neutral-400">
+                    <span className="font-mono text-[#ececec] tabular-nums">
+                      A {generatedPatch.ampAttack.toFixed(2)}s / R {generatedPatch.ampRelease.toFixed(2)}s
+                    </span>
+                    <span className="font-mono text-[11px] text-[rgba(236,236,236,0.54)] tabular-nums">
                       Sustain {Math.round(generatedPatch.ampSustain * 100)}%
                     </span>
                   </div>
-                  <div className="bg-[#0D1016] border border-[#202531] rounded-lg p-3 flex flex-col gap-1">
-                    <span className="text-neutral-400">Stage FX</span>
-                    <span className="font-mono text-neutral-100">
-                      Rev {Math.round(generatedPatch.reverbMix * 100)}% · Dly {Math.round(generatedPatch.delayMix * 100)}%
+                  <div className="bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-3 flex flex-col gap-1">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.5)]">
+                      Stage FX
                     </span>
-                    <span className="font-mono text-[11px] text-neutral-400">
+                    <span className="font-mono text-[#ececec] tabular-nums">
+                      Rev {Math.round(generatedPatch.reverbMix * 100)}% / Dly {Math.round(generatedPatch.delayMix * 100)}%
+                    </span>
+                    <span className="font-mono text-[11px] text-[rgba(236,236,236,0.54)] tabular-nums">
                       Drive {Math.round(generatedPatch.drive * 100)}%
                     </span>
                   </div>
@@ -336,33 +371,34 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                 {/* Assign to Live Stage Slot */}
                 <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
                   <div className="flex items-center gap-2">
-                    <span className="text-xs text-neutral-400">Assign to Live Slot</span>
+                    <span className="font-mono text-[10px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.54)]">
+                      Assign to Live Slot
+                    </span>
                     <select
                       value={slotSelect}
                       onChange={(e) => setSlotSelect(Number(e.target.value))}
-                      className="h-8 bg-[#0D1016] border border-[#2A303E] rounded-md px-2 text-xs font-mono text-neutral-200"
+                      className="h-8 bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] rounded-[2px] px-2 text-xs font-mono text-[#ececec]"
                     >
                       {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
                         <option key={i} value={i}>
-                          Slot {i + 1}
+                          Slot {String(i + 1).padStart(2, '0')}
                         </option>
                       ))}
                     </select>
                     <button
                       type="button"
                       onClick={handleAssignSlot}
-                      className="h-8 px-3 rounded-md bg-[#191D27] border border-[#2A303E] hover:border-amber-500/60 text-xs font-medium text-neutral-200 transition-colors"
+                      className="h-8 px-3 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] hover:border-[#ff4d00] font-mono text-[10px] uppercase tracking-[0.06em] text-[#ececec] transition-colors"
                     >
                       Assign
                     </button>
                   </div>
-                  {savedNotice && <span className="text-xs text-amber-400">{savedNotice}</span>}
+                  {savedNotice && <span className="font-mono text-xs text-[#ff4d00]">{savedNotice}</span>}
                 </div>
 
-                {/* Suggested Progression */}
                 {suggestedChords.length > 0 && (
-                  <div className="pt-3 border-t border-[#222631] flex flex-col gap-2.5">
-                    <span className="text-xs font-medium text-neutral-300">
+                  <div className="pt-3 border-t border-[rgba(236,236,236,0.12)] flex flex-col gap-2.5">
+                    <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)]">
                       Tailored Chord Progression (Click to Play)
                     </span>
                     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
@@ -371,15 +407,15 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                           key={`${ch.symbol}-${idx}`}
                           type="button"
                           onClick={() => synthEngine.playChord(ch.midiNotes, 1100, 96)}
-                          className="p-3 rounded-lg bg-[#0D1016] border border-[#242936] hover:border-amber-500/70 text-left flex flex-col gap-1 transition-colors"
+                          className="p-3 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.12)] hover:border-[#ff4d00] text-left flex flex-col gap-1 transition-colors"
                         >
                           <div className="flex items-baseline justify-between">
-                            <span className="text-base font-display font-semibold text-neutral-100">
+                            <span className="text-base font-display font-bold text-[#ececec]">
                               {ch.symbol}
                             </span>
-                            <span className="text-[11px] font-mono text-amber-400">{ch.roman}</span>
+                            <span className="text-[11px] font-mono text-[#ff4d00]">{ch.roman}</span>
                           </div>
-                          <span className="text-[11px] font-mono text-neutral-400 truncate">
+                          <span className="text-[11px] font-mono text-[rgba(236,236,236,0.54)] truncate">
                             {ch.midiNotes.map(midiNoteToName).join(' ')}
                           </span>
                         </button>
@@ -390,10 +426,10 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
               </>
             ) : (
               <div className="py-10 text-center flex flex-col items-center gap-2">
-                <p className="text-sm font-medium text-neutral-200">
+                <p className="font-display text-sm font-bold uppercase tracking-[0.04em] text-[#ececec]">
                   No AI patch synthesized in this session yet
                 </p>
-                <p className="text-xs text-neutral-400 max-w-md">
+                <p className="text-xs text-[rgba(236,236,236,0.54)] max-w-md">
                   Enter a description on the left and click Generate &amp; Load Sound to craft a
                   custom synthesizer patch and audition it live.
                 </p>
@@ -402,32 +438,31 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
           </div>
 
           {/* Saved Custom & AI Patch Library */}
-          <div className="bg-[#12151C] border border-[#232732] rounded-xl p-5 flex flex-col gap-4">
+          <div className="bg-[#161618] border border-[rgba(236,236,236,0.12)] rounded-[2px] p-5 flex flex-col gap-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h3 className="text-sm font-semibold text-neutral-100">
+                <h3 className="font-display text-xs font-extrabold uppercase tracking-[0.06em] text-[#ececec]">
                   Patch Library ({userPatches.length})
                 </h3>
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-[rgba(236,236,236,0.54)] mt-0.5">
                   Filter or re-categorize your saved custom and AI-generated sounds.
                 </p>
               </div>
               {userPatches.length > 0 && (
                 <div className="relative w-full sm:w-52">
-                  <Search className="w-3.5 h-3.5 text-neutral-500 absolute left-2.5 top-1/2 -translate-y-1/2" />
+                  <Search className="w-3.5 h-3.5 text-[rgba(236,236,236,0.45)] absolute left-2.5 top-1/2 -translate-y-1/2" />
                   <input
                     type="text"
                     value={librarySearch}
                     onChange={(e) => setLibrarySearch(e.target.value)}
                     placeholder="Filter saved sounds..."
-                    className="w-full h-8 pl-8 pr-2.5 rounded-lg bg-[#0D1016] border border-[#252A38] text-xs text-neutral-200 placeholder:text-neutral-500 focus:outline-none focus:border-amber-500"
+                    className="w-full h-8 pl-8 pr-2.5 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] text-xs text-[#ececec] placeholder:text-[rgba(236,236,236,0.38)] focus:outline-none focus:border-[#ff4d00]"
                   />
                 </div>
               )}
             </div>
 
-            {/* Category Filter Tabs */}
-            <div className="flex flex-wrap items-center gap-1 bg-[#0D1016] p-1 rounded-lg border border-[#222631]">
+            <div className="flex flex-wrap items-center gap-1 bg-[#0c0c0e] p-1 rounded-[2px] border border-[rgba(236,236,236,0.12)]">
               {LIBRARY_CATEGORIES.map((cat) => {
                 const count = categoryCounts[cat] || 0;
                 const isActive = libraryCategory === cat;
@@ -436,30 +471,30 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                     key={cat}
                     type="button"
                     onClick={() => setLibraryCategory(cat)}
-                    className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
+                    className={`px-2.5 py-1 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.06em] transition-colors flex items-center gap-1.5 whitespace-nowrap shrink-0 ${
                       isActive
-                        ? 'bg-[#252A38] text-amber-400'
-                        : 'text-neutral-400 hover:text-neutral-200'
+                        ? 'bg-[#ff4d00] text-[#0c0c0e] font-semibold'
+                        : 'text-[rgba(236,236,236,0.54)] hover:text-[#ececec]'
                     }`}
                   >
                     <span>{cat}</span>
-                    <span className="font-mono text-[10px] opacity-70">{count}</span>
+                    <span className="tabular-nums opacity-80">{count}</span>
                   </button>
                 );
               })}
             </div>
 
             {userPatches.length === 0 ? (
-              <p className="text-xs text-neutral-400 py-4">
+              <p className="text-xs text-[rgba(236,236,236,0.54)] py-4">
                 Your saved AI-generated sounds and customized Stage patches will appear here,
                 organized by Bass, Lead, Pad, Pluck, Keys, Brass, and FX.
               </p>
             ) : filteredUserPatches.length === 0 ? (
-              <p className="text-xs text-neutral-400 py-4">
+              <p className="text-xs text-[rgba(236,236,236,0.54)] py-4">
                 No saved patches in {libraryCategory === 'All' ? 'your library' : `the ${libraryCategory} category`} match your filter.
               </p>
             ) : (
-              <div className="divide-y divide-[#1E222C]">
+              <div className="divide-y divide-[rgba(236,236,236,0.08)]">
                 {filteredUserPatches.map((up) => {
                   const isCurrent = activePatch.id === up.id;
                   return (
@@ -469,14 +504,16 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                     >
                       <div className="min-w-0 flex-1 flex flex-col gap-0.5">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-neutral-100 truncate">
+                          <span className="text-sm font-semibold text-[#ececec] truncate">
                             {up.name}
                           </span>
-                          <span className="text-xs text-neutral-400 shrink-0">
-                            {up.category} · {up.author || 'User'}
+                          <span className="font-mono text-[10px] uppercase text-[#ff4d00] shrink-0">
+                            {up.category} / {up.author || 'User'}
                           </span>
                         </div>
-                        <p className="text-xs text-neutral-400 truncate">{up.description}</p>
+                        <p className="text-xs text-[rgba(236,236,236,0.54)] truncate">
+                          {up.description}
+                        </p>
                       </div>
 
                       <div className="flex items-center gap-2 shrink-0">
@@ -486,7 +523,7 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                           onChange={(e) =>
                             onUpdateUserPatchCategory(up.id, e.target.value as PatchCategory)
                           }
-                          className="h-8 bg-[#0D1016] border border-[#2A303E] rounded-md px-2 text-xs text-neutral-300 focus:outline-none focus:border-amber-500"
+                          className="h-8 bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] rounded-[2px] px-2 font-mono text-[11px] text-[#ececec] focus:outline-none focus:border-[#ff4d00]"
                         >
                           {PATCH_CATEGORIES.map((cat) => (
                             <option key={cat} value={cat}>
@@ -503,17 +540,17 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                           }}
                           title="Audition sound"
                           aria-label={`Audition ${up.name}`}
-                          className="h-8 w-8 rounded-md bg-[#191D27] border border-[#2A303E] hover:border-amber-500/60 text-amber-400 flex items-center justify-center transition-colors"
+                          className="h-8 w-8 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] hover:border-[#ff4d00] text-[#ff4d00] flex items-center justify-center transition-colors"
                         >
                           <Play className="w-3.5 h-3.5" />
                         </button>
                         <button
                           type="button"
                           onClick={() => onLoadPatch(up)}
-                          className={`h-8 px-3 rounded-md text-xs font-medium border transition-colors ${
+                          className={`h-8 px-3 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.06em] border transition-colors ${
                             isCurrent
-                              ? 'bg-amber-500 text-[#0B0D11] border-amber-400 font-semibold'
-                              : 'bg-[#191D27] border-[#2A303E] text-neutral-200 hover:border-neutral-500'
+                              ? 'bg-[#ff4d00] text-[#0c0c0e] border-[#ff4d00] font-bold'
+                              : 'bg-[#0c0c0e] border-[rgba(236,236,236,0.14)] text-[#ececec] hover:border-[#ececec]'
                           }`}
                         >
                           {isCurrent ? 'Loaded' : 'Load'}
@@ -522,7 +559,7 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
                           type="button"
                           onClick={() => onDeleteUserPatch(up.id)}
                           aria-label={`Delete ${up.name}`}
-                          className="h-8 w-8 rounded-md bg-[#191D27] border border-[#2A303E] hover:border-red-500/60 text-neutral-400 hover:text-red-400 flex items-center justify-center transition-colors"
+                          className="h-8 w-8 rounded-[2px] bg-[#0c0c0e] border border-[rgba(236,236,236,0.14)] hover:border-[#ff4d00] text-[rgba(236,236,236,0.54)] hover:text-[#ff4d00] flex items-center justify-center transition-colors"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
                         </button>
@@ -536,7 +573,6 @@ export const AiSoundLabView: React.FC<AiSoundLabViewProps> = ({
         </div>
       </div>
 
-      {/* Playable Keyboard right below for instant sound testing */}
       <PerformanceKeyboard
         baseOctave={baseOctave}
         onOctaveChange={onOctaveChange}

@@ -74,7 +74,6 @@ function quantizeToScale(note: number, scaleName: string): number {
   if (!intervals) return note;
   const pc = note % 12;
   if (intervals.includes(pc)) return note;
-  // Snap to nearest lower interval in scale
   for (let d = 1; d <= 3; d++) {
     if (intervals.includes((pc - d + 12) % 12)) return note - d;
     if (intervals.includes((pc + d) % 12)) return note + d;
@@ -85,7 +84,6 @@ function quantizeToScale(note: number, scaleName: string): number {
 function buildChordNotes(root: number, scaleName: string): number[] {
   const intervals = SCALE_INTERVALS[scaleName];
   if (!intervals) {
-    // Minor 7th default voicing for chromatic 1-key chord mode
     return [root, root + 3, root + 7, root + 10];
   }
   const pc = root % 12;
@@ -133,14 +131,12 @@ export default function App() {
   const [metronomeOn, setMetronomeOn] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(0);
 
-  // Keyboard & Playing state
   const [baseOctave, setBaseOctave] = useState(3);
   const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
   const [sustainOn, setSustainOn] = useState(false);
   const [chordMode, setChordMode] = useState(false);
   const [scaleLock, setScaleLock] = useState('Chromatic');
 
-  // MIDI state
   const [midiSupported, setMidiSupported] = useState<boolean>(midiManager.isSupported());
   const [midiError, setMidiError] = useState<string | null>(null);
   const [midiDevices, setMidiDevices] = useState<MidiDeviceInfo[]>([]);
@@ -170,12 +166,10 @@ export default function App() {
     return [...FACTORY_PATCHES, ...songPatches, ...userPatches];
   }, [customSongs, userPatches]);
 
-  // Sync active patch with audio engine
   useEffect(() => {
     synthEngine.setPatch(patch);
   }, [patch]);
 
-  // Persist user library & slots & CC map
   useEffect(() => {
     try {
       window.localStorage.setItem('klangstage_user_patches', JSON.stringify(userPatches));
@@ -270,50 +264,52 @@ export default function App() {
     setPatch((prev) => ({ ...prev, ...updates }));
   }, []);
 
-  const applyMidiCCValue = useCallback((param: MidiLearnableParam, rawValue: number) => {
-    const norm = rawValue / 127;
-    switch (param) {
-      case 'filterCutoff': {
-        // Exponential frequency mapping 60Hz..16000Hz for musical hardware knob feel
-        const hz = Math.round(60 * Math.pow(16000 / 60, norm));
-        handleUpdatePatch({ filterCutoff: hz });
-        break;
+  const applyMidiCCValue = useCallback(
+    (param: MidiLearnableParam, rawValue: number) => {
+      const norm = rawValue / 127;
+      switch (param) {
+        case 'filterCutoff': {
+          const hz = Math.round(60 * Math.pow(16000 / 60, norm));
+          handleUpdatePatch({ filterCutoff: hz });
+          break;
+        }
+        case 'filterResonance':
+          handleUpdatePatch({ filterResonance: Number((0.2 + norm * 14).toFixed(1)) });
+          break;
+        case 'osc2Level':
+          handleUpdatePatch({ osc2Level: Number(norm.toFixed(2)) });
+          break;
+        case 'subLevel':
+          handleUpdatePatch({ subLevel: Number(norm.toFixed(2)) });
+          break;
+        case 'ampAttack':
+          handleUpdatePatch({ ampAttack: Number((0.004 + Math.pow(norm, 2) * 1.8).toFixed(3)) });
+          break;
+        case 'ampRelease':
+          handleUpdatePatch({ ampRelease: Number((0.03 + Math.pow(norm, 2) * 3.2).toFixed(2)) });
+          break;
+        case 'drive':
+          handleUpdatePatch({ drive: Number(norm.toFixed(2)) });
+          break;
+        case 'chorusMix':
+          handleUpdatePatch({ chorusMix: Number(norm.toFixed(2)) });
+          break;
+        case 'delayMix':
+          handleUpdatePatch({ delayMix: Number((norm * 0.85).toFixed(2)) });
+          break;
+        case 'reverbMix':
+          handleUpdatePatch({ reverbMix: Number((norm * 0.88).toFixed(2)) });
+          break;
+        case 'lfoRate':
+          handleUpdatePatch({ lfoRate: Number((0.1 + norm * 15).toFixed(1)) });
+          break;
+        case 'lfoDepth':
+          handleUpdatePatch({ lfoDepth: Number(norm.toFixed(2)) });
+          break;
       }
-      case 'filterResonance':
-        handleUpdatePatch({ filterResonance: Number((0.2 + norm * 14).toFixed(1)) });
-        break;
-      case 'osc2Level':
-        handleUpdatePatch({ osc2Level: Number(norm.toFixed(2)) });
-        break;
-      case 'subLevel':
-        handleUpdatePatch({ subLevel: Number(norm.toFixed(2)) });
-        break;
-      case 'ampAttack':
-        handleUpdatePatch({ ampAttack: Number((0.004 + Math.pow(norm, 2) * 1.8).toFixed(3)) });
-        break;
-      case 'ampRelease':
-        handleUpdatePatch({ ampRelease: Number((0.03 + Math.pow(norm, 2) * 3.2).toFixed(2)) });
-        break;
-      case 'drive':
-        handleUpdatePatch({ drive: Number(norm.toFixed(2)) });
-        break;
-      case 'chorusMix':
-        handleUpdatePatch({ chorusMix: Number(norm.toFixed(2)) });
-        break;
-      case 'delayMix':
-        handleUpdatePatch({ delayMix: Number((norm * 0.85).toFixed(2)) });
-        break;
-      case 'reverbMix':
-        handleUpdatePatch({ reverbMix: Number((norm * 0.88).toFixed(2)) });
-        break;
-      case 'lfoRate':
-        handleUpdatePatch({ lfoRate: Number((0.1 + norm * 15).toFixed(1)) });
-        break;
-      case 'lfoDepth':
-        handleUpdatePatch({ lfoDepth: Number(norm.toFixed(2)) });
-        break;
-    }
-  }, [handleUpdatePatch]);
+    },
+    [handleUpdatePatch]
+  );
 
   const connectMidi = useCallback(async () => {
     const res = await midiManager.connect({
@@ -370,7 +366,6 @@ export default function App() {
     void connectMidi();
   }, [connectMidi]);
 
-  // Computer QWERTY keyboard performance bindings
   useEffect(() => {
     const downKeys = new Map<string, number>();
 
@@ -424,7 +419,6 @@ export default function App() {
     };
   }, [baseOctave, handleNoteOff, handleNoteOn]);
 
-  // Stage Metronome
   useEffect(() => {
     if (!metronomeOn) {
       setCurrentBeat(0);
@@ -533,15 +527,15 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0B0D11] text-[#F2F4F8] flex flex-col">
+    <div className="min-h-screen bg-[#0c0c0e] text-[#ececec] flex flex-col">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
-      <header className="border-b border-[#20242E] bg-[#0E1117] px-6 py-3.5">
-        <div className="max-w-[1400px] mx-auto flex items-center justify-between gap-8">
+      <header className="border-b-2 border-[#ececec] bg-[#0c0c0e] px-5 sm:px-6 py-3">
+        <div className="w-full flex items-center justify-between gap-8">
           {/* Zone 1: Brand Wordmark */}
           <button
             type="button"
             onClick={() => setActiveTab('stage')}
-            className="font-display text-lg font-bold tracking-tight text-neutral-100 whitespace-nowrap shrink-0 text-left"
+            className="font-display text-xl font-extrabold uppercase tracking-[-0.04em] text-[#ececec] whitespace-nowrap shrink-0 text-left"
           >
             KlangStage
           </button>
@@ -562,10 +556,10 @@ export default function App() {
                   key={tab.id}
                   type="button"
                   onClick={() => setActiveTab(tab.id)}
-                  className={`py-1 text-sm font-medium border-b-2 transition-colors whitespace-nowrap shrink-0 ${
+                  className={`py-1 font-mono text-[11px] uppercase tracking-[0.12em] border-b-2 transition-colors whitespace-nowrap shrink-0 ${
                     isActive
-                      ? 'border-amber-500 text-neutral-100'
-                      : 'border-transparent text-neutral-400 hover:text-neutral-200'
+                      ? 'border-[#ff4d00] text-[#ececec]'
+                      : 'border-transparent text-[rgba(236,236,236,0.54)] hover:text-[#ececec]'
                   }`}
                 >
                   {tab.label}
@@ -579,10 +573,10 @@ export default function App() {
             <button
               type="button"
               onClick={handlePanic}
-              className={`h-9 px-4 rounded-lg text-xs font-semibold transition-colors whitespace-nowrap shrink-0 ${
+              className={`h-9 px-4 rounded-[2px] font-mono text-[11px] uppercase tracking-[0.08em] font-semibold transition-colors whitespace-nowrap shrink-0 ${
                 audioReady
-                  ? 'bg-[#191D27] border border-[#2F3545] hover:border-red-500/70 text-neutral-200'
-                  : 'bg-amber-500 hover:bg-amber-400 text-[#0B0D11]'
+                  ? 'bg-[#161618] border border-[rgba(236,236,236,0.28)] hover:border-[#ff4d00] text-[#ececec]'
+                  : 'bg-[#ff4d00] hover:bg-[#ff621f] text-[#0c0c0e]'
               }`}
             >
               {audioReady ? 'All Notes Off' : 'Start Audio Engine'}
@@ -591,9 +585,9 @@ export default function App() {
         </div>
       </header>
 
-      {/* Main Workspace Container */}
-      <main className="flex-1 w-full max-w-[1400px] mx-auto px-4 sm:px-6 py-5">
-        {activeTab === 'stage' && (
+      {/* Main Workspace */}
+      {activeTab === 'stage' ? (
+        <div className="flex-1 flex flex-col min-h-0">
           <StageView
             patch={patch}
             allPatches={allPatches}
@@ -633,99 +627,101 @@ export default function App() {
             onSelectMidiLearnParam={setMidiLearnParam}
             midiCCMap={midiCCMap}
           />
-        )}
+        </div>
+      ) : (
+        <main className="flex-1 w-full max-w-[1440px] mx-auto px-4 sm:px-6 py-5">
+          {activeTab === 'charts' && (
+            <SongChartsView
+              activePatchId={patch.id}
+              onLoadSongPatch={handleLoadSongPatch}
+              customSongs={customSongs}
+              onAddCustomSong={(song) =>
+                setCustomSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)])
+              }
+              onDeleteCustomSong={(id) =>
+                setCustomSongs((prev) => prev.filter((s) => s.id !== id))
+              }
+              activeNotes={activeNotes}
+              baseOctave={baseOctave}
+              onOctaveChange={setBaseOctave}
+              onNoteOn={handleNoteOn}
+              onNoteOff={handleNoteOff}
+              sustainOn={sustainOn}
+              onToggleSustain={handleToggleSustain}
+              chordMode={chordMode}
+              onToggleChordMode={() => setChordMode((v) => !v)}
+              scaleLock={scaleLock}
+              onScaleLockChange={setScaleLock}
+            />
+          )}
 
-        {activeTab === 'charts' && (
-          <SongChartsView
-            activePatchId={patch.id}
-            onLoadSongPatch={handleLoadSongPatch}
-            customSongs={customSongs}
-            onAddCustomSong={(song) =>
-              setCustomSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)])
-            }
-            onDeleteCustomSong={(id) =>
-              setCustomSongs((prev) => prev.filter((s) => s.id !== id))
-            }
-            activeNotes={activeNotes}
-            baseOctave={baseOctave}
-            onOctaveChange={setBaseOctave}
-            onNoteOn={handleNoteOn}
-            onNoteOff={handleNoteOff}
-            sustainOn={sustainOn}
-            onToggleSustain={handleToggleSustain}
-            chordMode={chordMode}
-            onToggleChordMode={() => setChordMode((v) => !v)}
-            scaleLock={scaleLock}
-            onScaleLockChange={setScaleLock}
-          />
-        )}
+          {activeTab === 'ai-lab' && (
+            <AiSoundLabView
+              onLoadPatch={(p) => {
+                void ensureAudioReady();
+                setPatch(p);
+                setActiveSlotIndex(null);
+              }}
+              onSavePatch={handleSavePatchToLibrary}
+              onUpdateUserPatchCategory={(id: string, category: PatchCategory) => {
+                setUserPatches((prev) =>
+                  prev.map((p) => (p.id === id ? { ...p, category } : p))
+                );
+                setPatch((prev) => (prev.id === id ? { ...prev, category } : prev));
+              }}
+              onDeleteUserPatch={(id) =>
+                setUserPatches((prev) => prev.filter((p) => p.id !== id))
+              }
+              onStoreToSlot={handleStoreToSlot}
+              userPatches={userPatches}
+              activePatch={patch}
+              activeNotes={activeNotes}
+              baseOctave={baseOctave}
+              onOctaveChange={setBaseOctave}
+              onNoteOn={handleNoteOn}
+              onNoteOff={handleNoteOff}
+              sustainOn={sustainOn}
+              onToggleSustain={handleToggleSustain}
+              chordMode={chordMode}
+              onToggleChordMode={() => setChordMode((v) => !v)}
+              scaleLock={scaleLock}
+              onScaleLockChange={setScaleLock}
+            />
+          )}
 
-        {activeTab === 'ai-lab' && (
-          <AiSoundLabView
-            onLoadPatch={(p) => {
-              void ensureAudioReady();
-              setPatch(p);
-              setActiveSlotIndex(null);
-            }}
-            onSavePatch={handleSavePatchToLibrary}
-            onUpdateUserPatchCategory={(id: string, category: PatchCategory) => {
-              setUserPatches((prev) =>
-                prev.map((p) => (p.id === id ? { ...p, category } : p))
-              );
-              setPatch((prev) => (prev.id === id ? { ...prev, category } : prev));
-            }}
-            onDeleteUserPatch={(id) =>
-              setUserPatches((prev) => prev.filter((p) => p.id !== id))
-            }
-            onStoreToSlot={handleStoreToSlot}
-            userPatches={userPatches}
-            activePatch={patch}
-            activeNotes={activeNotes}
-            baseOctave={baseOctave}
-            onOctaveChange={setBaseOctave}
-            onNoteOn={handleNoteOn}
-            onNoteOff={handleNoteOff}
-            sustainOn={sustainOn}
-            onToggleSustain={handleToggleSustain}
-            chordMode={chordMode}
-            onToggleChordMode={() => setChordMode((v) => !v)}
-            scaleLock={scaleLock}
-            onScaleLockChange={setScaleLock}
-          />
-        )}
-
-        {activeTab === 'instruments' && (
-          <InstrumentsView
-            audioReady={audioReady}
-            onEnableAudio={ensureAudioReady}
-            midiSupported={midiSupported}
-            midiError={midiError}
-            midiDevices={midiDevices}
-            selectedInputId={selectedInputId}
-            onSelectInputId={(id) => {
-              setSelectedInputId(id);
-              midiManager.setSelectedInput(id);
-            }}
-            channelFilter={channelFilter}
-            onChannelFilterChange={(ch) => {
-              setChannelFilter(ch);
-              midiManager.setChannelFilter(ch);
-            }}
-            velocityCurve={velocityCurve}
-            onVelocityCurveChange={(curve) => {
-              setVelocityCurve(curve);
-              midiManager.setVelocityCurve(curve);
-            }}
-            onRefreshMidi={connectMidi}
-            midiLogs={midiLogs}
-            onClearLogs={() => setMidiLogs([])}
-            midiCCMap={midiCCMap}
-            midiLearnParam={midiLearnParam}
-            onSelectMidiLearnParam={setMidiLearnParam}
-            onResetCCMap={() => setMidiCCMap(DEFAULT_CC_MAP)}
-          />
-        )}
-      </main>
+          {activeTab === 'instruments' && (
+            <InstrumentsView
+              audioReady={audioReady}
+              onEnableAudio={ensureAudioReady}
+              midiSupported={midiSupported}
+              midiError={midiError}
+              midiDevices={midiDevices}
+              selectedInputId={selectedInputId}
+              onSelectInputId={(id) => {
+                setSelectedInputId(id);
+                midiManager.setSelectedInput(id);
+              }}
+              channelFilter={channelFilter}
+              onChannelFilterChange={(ch) => {
+                setChannelFilter(ch);
+                midiManager.setChannelFilter(ch);
+              }}
+              velocityCurve={velocityCurve}
+              onVelocityCurveChange={(curve) => {
+                setVelocityCurve(curve);
+                midiManager.setVelocityCurve(curve);
+              }}
+              onRefreshMidi={connectMidi}
+              midiLogs={midiLogs}
+              onClearLogs={() => setMidiLogs([])}
+              midiCCMap={midiCCMap}
+              midiLearnParam={midiLearnParam}
+              onSelectMidiLearnParam={setMidiLearnParam}
+              onResetCCMap={() => setMidiCCMap(DEFAULT_CC_MAP)}
+            />
+          )}
+        </main>
+      )}
     </div>
   );
 }

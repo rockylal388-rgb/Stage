@@ -3,15 +3,21 @@
 
 @layer base {
   :root {
-    --font-display: 'Outfit', system-ui, sans-serif;
+    --bg: #0c0c0e;
+    --ink: #ececec;
+    --accent: #ff4d00;
+    --panel: #161618;
+    --border: rgba(236, 236, 236, 0.12);
+    --ink-dim: rgba(236, 236, 236, 0.54);
+    --font-display: 'Syne', system-ui, sans-serif;
     --font-sans: 'Plus Jakarta Sans', system-ui, sans-serif;
     --font-mono: 'JetBrains Mono', ui-monospace, monospace;
   }
 
   body {
     font-family: var(--font-sans);
-    background-color: #0B0D11;
-    color: #F2F4F8;
+    background-color: var(--bg);
+    color: var(--ink);
     letter-spacing: 0.01em;
   }
 
@@ -25,33 +31,35 @@
   }
 }
 
-/* Precision fader & range slider styling */
+/* Variation 2 hardware hairline range fader */
 input[type="range"].synth-slider {
   -webkit-appearance: none;
   appearance: none;
   background: transparent;
   cursor: pointer;
+  height: 16px;
 }
 
 input[type="range"].synth-slider::-webkit-slider-runnable-track {
-  height: 4px;
-  border-radius: 2px;
-  background: #232732;
+  height: 2px;
+  border-radius: 0;
+  background: rgba(236, 236, 236, 0.16);
 }
 
 input[type="range"].synth-slider::-webkit-slider-thumb {
   -webkit-appearance: none;
   appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 3px;
-  background: #F59E0B;
+  width: 12px;
+  height: 12px;
+  border-radius: 0;
+  background: #ececec;
   margin-top: -5px;
-  border: 1px solid #0B0D11;
-  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1);
+  border: 2px solid #0c0c0e;
+  transition: transform 120ms cubic-bezier(0.16, 1, 0.3, 1), background-color 120ms ease;
 }
 
 input[type="range"].synth-slider:hover::-webkit-slider-thumb {
+  background: #ff4d00;
   transform: scale(1.15);
 }
 
@@ -60,21 +68,21 @@ input[type="range"].synth-slider:focus-visible {
 }
 
 input[type="range"].synth-slider:focus-visible::-webkit-slider-thumb {
-  box-shadow: 0 0 0 2px #0B0D11, 0 0 0 4px #F59E0B;
+  background: #ff4d00;
+  box-shadow: 0 0 0 2px #0c0c0e, 0 0 0 3px #ff4d00;
 }
 
-/* Custom subtle scrollbars */
+/* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #0B0D11;
+  background: #0c0c0e;
 }
 ::-webkit-scrollbar-thumb {
-  background: #262B36;
-  border-radius: 3px;
+  background: rgba(236, 236, 236, 0.18);
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: #373E4E;
+  background: rgba(236, 236, 236, 0.34);
 }
