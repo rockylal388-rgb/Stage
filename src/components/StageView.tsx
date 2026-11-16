@@ -1,5 +1,8 @@
 import React, { useMemo, useRef, useState } from 'react';
 import {
+  ArpeggiatorConfig,
+  ArpPattern,
+  ArpRate,
   FilterType,
   LfoTarget,
   MidiCCMap,
@@ -11,7 +14,8 @@ import {
 import { synthEngine } from '../audio/synthEngine';
 import { Oscilloscope } from './Oscilloscope';
 import { PerformanceKeyboard, SCALE_INTERVALS } from './PerformanceKeyboard';
-import { Sliders, Volume2, Radio, BookmarkPlus } from 'lucide-react';
+import { PatchBrowserModal } from './PatchBrowserModal';
+import { Sliders, Volume2, Radio, BookmarkPlus, Library } from 'lucide-react';
 
 interface StageViewProps {
   patch: SynthPatch;
@@ -45,11 +49,25 @@ interface StageViewProps {
   midiLearnParam: MidiLearnableParam | null;
   onSelectMidiLearnParam: (param: MidiLearnableParam | null) => void;
   midiCCMap: MidiCCMap;
+  arpeggiator: ArpeggiatorConfig;
+  onArpeggiatorChange: (updates: Partial<ArpeggiatorConfig>) => void;
+  arpHighlightedNotes?: Set<number>;
+  morphSlotIndex: number;
+  onMorphSlotChange: (slotIdx: number) => void;
+  morphAmount: number;
+  onMorphAmountChange: (amount: number) => void;
 }
 
 const WAVEFORMS: OscWaveform[] = ['sine', 'triangle', 'sawtooth', 'square'];
 const FILTERS: FilterType[] = ['lowpass', 'bandpass', 'highpass', 'notch'];
 const LFO_TARGETS: LfoTarget[] = ['filter', 'pitch', 'amp'];
+const ARP_RATES: ArpRate[] = ['1/4', '1/8', '1/8T', '1/16', '1/32'];
+const ARP_PATTERNS: { value: ArpPattern; label: string }[] = [
+  { value: 'up', label: 'Up' },
+  { value: 'down', label: 'Down' },
+  { value: 'up-down', label: 'Up/Dn' },
+  { value: 'random', label: 'Random' },
+];
 const PATCH_CATEGORIES: ('All' | PatchCategory)[] = [
   'All',
   'Bass',
@@ -105,9 +123,17 @@ export const StageView: React.FC<StageViewProps> = ({
   midiLearnParam,
   onSelectMidiLearnParam,
   midiCCMap,
+  arpeggiator,
+  onArpeggiatorChange,
+  arpHighlightedNotes,
+  morphSlotIndex,
+  onMorphSlotChange,
+  morphAmount,
+  onMorphAmountChange,
 }) => {
   const [storingSlotMode, setStoringSlotMode] = useState(false);
   const [learnActive, setLearnActive] = useState(false);
+  const [patchBrowserOpen, setPatchBrowserOpen] = useState(false);
   const [patchCategoryFilter, setPatchCategoryFilter] = useState<'All' | PatchCategory>('All');
   const pressedPadsRef = useRef<Set<string>>(new Set());
   const auditioningRef = useRef(false);
@@ -248,12 +274,90 @@ export const StageView: React.FC<StageViewProps> = ({
               ))}
             </select>
 
+            <button
+              type="button"
+              onClick={() => setPatchBrowserOpen(true)}
+              className="w-full h-9 px-3 bg-[#0c0c0e] border border-[rgba(236,236,236,0.2)] hover:border-[#ff4d00] rounded-[2px] font-mono text-[10px] uppercase tracking-[0.08em] text-[#ececec] flex items-center justify-between transition-colors"
+            >
+              <span className="flex items-center gap-2">
+                <Library className="w-3.5 h-3.5 text-[#ff4d00]" />
+                <span>Browse All Patches</span>
+              </span>
+              <span className="text-[#ff4d00] tabular-nums">{allPatches.length}</span>
+            </button>
+
             <p className="text-[13px] leading-relaxed text-[rgba(236,236,236,0.6)]">
               {patch.description}
             </p>
           </div>
 
-          <Oscilloscope audioReady={audioReady} heightClass="h-36" />
+          {/* Patch Morph (A -> Slot B) */}
+          <div
+            className={`bg-[#0c0c0e] border rounded-[2px] p-3 flex flex-col gap-2.5 transition-colors ${
+              morphAmount > 0 && stageSlots[morphSlotIndex]
+                ? 'border-[#ff4d00]'
+                : 'border-[rgba(236,236,236,0.12)]'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <label
+                htmlFor="morph-target-slot"
+                className="font-mono text-[10px] uppercase tracking-[0.15em] text-[rgba(236,236,236,0.54)]"
+              >
+                Patch Morph
+              </label>
+              <div className="flex items-center gap-2">
+                {morphAmount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => onMorphAmountChange(0)}
+                    className="font-mono text-[9px] uppercase tracking-[0.08em] text-[rgba(236,236,236,0.6)] hover:text-[#ff4d00]"
+                  >
+                    Reset
+                  </button>
+                )}
+                <span className="font-mono text-[11px] font-semibold text-[#ff4d00] tabular-nums">
+                  {Math.round(morphAmount * 100)}%
+                </span>
+              </div>
+            </div>
+
+            <select
+              id="morph-target-slot"
+              value={morphSlotIndex}
+              onChange={(e) => onMorphSlotChange(Number(e.target.value))}
+              className="w-full h-8 bg-[#161618] border border-[rgba(236,236,236,0.14)] rounded-[2px] px-2 font-mono text-[11px] text-[#ececec] focus:outline-none focus:border-[#ff4d00]"
+            >
+              {stageSlots.map((slot, idx) => (
+                <option key={idx} value={idx} disabled={!slot}>
+                  Slot {String(idx + 1).padStart(2, '0')} — {slot ? slot.name : 'Empty'}
+                </option>
+              ))}
+            </select>
+
+            <input
+              type="range"
+              min={0}
+              max={1}
+              step={0.01}
+              value={morphAmount}
+              disabled={!stageSlots[morphSlotIndex]}
+              onChange={(e) => onMorphAmountChange(parseFloat(e.target.value))}
+              aria-label="Patch Morph Amount"
+              className="synth-slider w-full disabled:opacity-40"
+            />
+
+            <div className="flex items-center justify-between font-mono text-[9px] uppercase tracking-[0.1em] text-[rgba(236,236,236,0.42)]">
+              <span>Current Patch</span>
+              <span>
+                {stageSlots[morphSlotIndex]
+                  ? `Slot ${String(morphSlotIndex + 1).padStart(2, '0')}`
+                  : 'No Target'}
+              </span>
+            </div>
+          </div>
+
+          <Oscilloscope audioReady={audioReady} heightClass="h-32" />
 
           <div className="flex flex-col gap-2 mt-auto">
             <button
@@ -674,8 +778,8 @@ export const StageView: React.FC<StageViewProps> = ({
           </div>
         </main>
 
-        {/* Sidebar Right: Setlist Slots, Tempo & Key Mapping */}
-        <aside className="bg-[#161618] border-t lg:border-t-0 lg:border-l border-[rgba(236,236,236,0.12)] p-5 flex flex-col gap-5">
+        {/* Sidebar Right: Setlist Slots, Tempo, Arpeggiator & Key Mapping */}
+        <aside className="bg-[#161618] border-t lg:border-t-0 lg:border-l border-[rgba(236,236,236,0.12)] p-5 flex flex-col gap-5 lg:overflow-y-auto">
           {/* Setlist Slots */}
           <div className="flex flex-col gap-2">
             <div className="flex items-center justify-between">
@@ -794,6 +898,87 @@ export const StageView: React.FC<StageViewProps> = ({
             </div>
           </div>
 
+          {/* Arpeggiator Module */}
+          <div
+            className={`bg-[#0c0c0e] border rounded-[2px] p-3.5 flex flex-col gap-3 transition-colors ${
+              arpeggiator.enabled ? 'border-[#ff4d00]' : 'border-[rgba(236,236,236,0.12)]'
+            }`}
+          >
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-mono text-[10px] uppercase tracking-[0.15em] text-[rgba(236,236,236,0.54)]">
+                Arpeggiator
+              </span>
+              <div className="flex items-center gap-1.5">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onArpeggiatorChange({ octaves: arpeggiator.octaves === 1 ? 2 : 1 })
+                  }
+                  className="px-2 py-0.5 bg-[#161618] border border-[rgba(236,236,236,0.16)] hover:border-[#ececec] rounded-[2px] font-mono text-[10px] uppercase text-[rgba(236,236,236,0.8)] tabular-nums"
+                  title="Toggle octave range"
+                >
+                  {arpeggiator.octaves} Oct
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onArpeggiatorChange({ enabled: !arpeggiator.enabled })}
+                  aria-pressed={arpeggiator.enabled}
+                  className={`px-2.5 py-0.5 border rounded-[2px] font-mono text-[10px] uppercase tracking-[0.08em] transition-colors ${
+                    arpeggiator.enabled
+                      ? 'bg-[#ff4d00] border-[#ff4d00] text-[#0c0c0e] font-bold'
+                      : 'bg-[#161618] border-[rgba(236,236,236,0.16)] text-[rgba(236,236,236,0.7)] hover:border-[#ececec]'
+                  }`}
+                >
+                  {arpeggiator.enabled ? 'On' : 'Off'}
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.45)]">
+                Rate (BPM Sync)
+              </span>
+              <div className="grid grid-cols-5 gap-1 bg-[#161618] p-1 border border-[rgba(236,236,236,0.1)] rounded-[2px]">
+                {ARP_RATES.map((rate) => (
+                  <button
+                    key={rate}
+                    type="button"
+                    onClick={() => onArpeggiatorChange({ rate })}
+                    className={`py-1 font-mono text-[10px] rounded-[2px] transition-colors ${
+                      arpeggiator.rate === rate
+                        ? 'bg-[#ff4d00] text-[#0c0c0e] font-bold'
+                        : 'text-[rgba(236,236,236,0.58)] hover:text-[#ececec]'
+                    }`}
+                  >
+                    {rate}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <span className="font-mono text-[9px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.45)]">
+                Pattern
+              </span>
+              <div className="grid grid-cols-4 gap-1 bg-[#161618] p-1 border border-[rgba(236,236,236,0.1)] rounded-[2px]">
+                {ARP_PATTERNS.map((pat) => (
+                  <button
+                    key={pat.value}
+                    type="button"
+                    onClick={() => onArpeggiatorChange({ pattern: pat.value })}
+                    className={`py-1 font-mono text-[10px] uppercase rounded-[2px] transition-colors ${
+                      arpeggiator.pattern === pat.value
+                        ? 'bg-[#ff4d00] text-[#0c0c0e] font-bold'
+                        : 'text-[rgba(236,236,236,0.58)] hover:text-[#ececec]'
+                    }`}
+                  >
+                    {pat.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
           {/* Scale Lock & Key Performance Controls */}
           <div className="flex flex-col gap-3 mt-auto">
             <div className="flex flex-col gap-1.5">
@@ -878,6 +1063,7 @@ export const StageView: React.FC<StageViewProps> = ({
           baseOctave={baseOctave}
           onOctaveChange={onOctaveChange}
           activeNotes={activeNotes}
+          highlightedNotes={arpHighlightedNotes}
           onNoteOn={onNoteOn}
           onNoteOff={onNoteOff}
           sustainOn={sustainOn}
@@ -909,6 +1095,14 @@ export const StageView: React.FC<StageViewProps> = ({
           </div>
         </div>
       </footer>
+
+      <PatchBrowserModal
+        isOpen={patchBrowserOpen}
+        onClose={() => setPatchBrowserOpen(false)}
+        allPatches={allPatches}
+        activePatchId={patch.id}
+        onSelectPatch={onSelectPatch}
+      />
     </div>
   );
 };

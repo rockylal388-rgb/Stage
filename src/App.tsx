@@ -1,5 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
+  ArpeggiatorConfig,
+  MasterEqSettings,
   MidiCCMap,
   MidiDeviceInfo,
   MidiLearnableParam,
@@ -100,6 +102,63 @@ function buildChordNotes(root: number, scaleName: string): number[] {
   return [root, getDegree(2), getDegree(4), getDegree(6)];
 }
 
+function lerp(a: number, b: number, t: number): number {
+  return a + (b - a) * t;
+}
+
+function expLerp(a: number, b: number, t: number): number {
+  const safeA = Math.max(40, a);
+  const safeB = Math.max(40, b);
+  return safeA * Math.pow(safeB / safeA, t);
+}
+
+function interpolatePatch(base: SynthPatch, target: SynthPatch | null, amount: number): SynthPatch {
+  if (!target || amount <= 0.001) return base;
+  const t = Math.max(0, Math.min(1, amount));
+  const useTargetDiscrete = t >= 0.5;
+  return {
+    ...base,
+    name: t > 0.02 ? `${base.name} × ${target.name}` : base.name,
+    category: useTargetDiscrete ? target.category : base.category,
+    osc1Wave: useTargetDiscrete ? target.osc1Wave : base.osc1Wave,
+    osc1Level: Number(lerp(base.osc1Level, target.osc1Level, t).toFixed(2)),
+    osc1Octave: Math.round(lerp(base.osc1Octave, target.osc1Octave, t)),
+    osc1Detune: Number(lerp(base.osc1Detune, target.osc1Detune, t).toFixed(1)),
+    osc2Wave: useTargetDiscrete ? target.osc2Wave : base.osc2Wave,
+    osc2Level: Number(lerp(base.osc2Level, target.osc2Level, t).toFixed(2)),
+    osc2Semi: Math.round(lerp(base.osc2Semi, target.osc2Semi, t)),
+    osc2Detune: Number(lerp(base.osc2Detune, target.osc2Detune, t).toFixed(1)),
+    subLevel: Number(lerp(base.subLevel, target.subLevel, t).toFixed(2)),
+    noiseLevel: Number(lerp(base.noiseLevel, target.noiseLevel, t).toFixed(3)),
+    unisonDetune: Math.round(lerp(base.unisonDetune, target.unisonDetune, t)),
+    glide: Number(lerp(base.glide, target.glide, t).toFixed(3)),
+    filterType: useTargetDiscrete ? target.filterType : base.filterType,
+    filterCutoff: Math.round(expLerp(base.filterCutoff, target.filterCutoff, t)),
+    filterResonance: Number(lerp(base.filterResonance, target.filterResonance, t).toFixed(1)),
+    filterEnvAmount: Math.round(lerp(base.filterEnvAmount, target.filterEnvAmount, t)),
+    ampAttack: Number(lerp(base.ampAttack, target.ampAttack, t).toFixed(3)),
+    ampDecay: Number(lerp(base.ampDecay, target.ampDecay, t).toFixed(2)),
+    ampSustain: Number(lerp(base.ampSustain, target.ampSustain, t).toFixed(2)),
+    ampRelease: Number(lerp(base.ampRelease, target.ampRelease, t).toFixed(2)),
+    filterAttack: Number(lerp(base.filterAttack, target.filterAttack, t).toFixed(3)),
+    filterDecay: Number(lerp(base.filterDecay, target.filterDecay, t).toFixed(2)),
+    filterSustain: Number(lerp(base.filterSustain, target.filterSustain, t).toFixed(2)),
+    filterRelease: Number(lerp(base.filterRelease, target.filterRelease, t).toFixed(2)),
+    lfoWave: useTargetDiscrete ? target.lfoWave : base.lfoWave,
+    lfoRate: Number(lerp(base.lfoRate, target.lfoRate, t).toFixed(1)),
+    lfoDepth: Number(lerp(base.lfoDepth, target.lfoDepth, t).toFixed(2)),
+    lfoTarget: useTargetDiscrete ? target.lfoTarget : base.lfoTarget,
+    drive: Number(lerp(base.drive, target.drive, t).toFixed(2)),
+    chorusMix: Number(lerp(base.chorusMix, target.chorusMix, t).toFixed(2)),
+    delayMix: Number(lerp(base.delayMix, target.delayMix, t).toFixed(2)),
+    delayTime: Number(lerp(base.delayTime, target.delayTime, t).toFixed(3)),
+    delayFeedback: Number(lerp(base.delayFeedback, target.delayFeedback, t).toFixed(2)),
+    reverbMix: Number(lerp(base.reverbMix, target.reverbMix, t).toFixed(2)),
+    reverbDecay: Number(lerp(base.reverbDecay, target.reverbDecay, t).toFixed(2)),
+    masterGain: base.masterGain,
+  };
+}
+
 export default function App() {
   const [activeTab, setActiveTab] = useState<AppTab>('stage');
   const [audioReady, setAudioReady] = useState(false);
@@ -127,6 +186,8 @@ export default function App() {
 
   const [activeSlotIndex, setActiveSlotIndex] = useState<number | null>(0);
   const [patch, setPatch] = useState<SynthPatch>(FACTORY_PATCHES[0]);
+  const [morphSlotIndex, setMorphSlotIndex] = useState<number>(1);
+  const [morphAmount, setMorphAmount] = useState<number>(0);
   const [bpm, setBpm] = useState<number>(120);
   const [metronomeOn, setMetronomeOn] = useState(false);
   const [currentBeat, setCurrentBeat] = useState(0);
@@ -136,6 +197,17 @@ export default function App() {
   const [sustainOn, setSustainOn] = useState(false);
   const [chordMode, setChordMode] = useState(false);
   const [scaleLock, setScaleLock] = useState('Chromatic');
+  const [arpeggiator, setArpeggiator] = useState<ArpeggiatorConfig>({
+    enabled: false,
+    pattern: 'up',
+    rate: '1/8',
+    octaves: 1,
+  });
+  const [arpStepNote, setArpStepNote] = useState<number | null>(null);
+  const [masterEq, setMasterEq] = useState<MasterEqSettings>(() =>
+    loadFromStorage<MasterEqSettings>('klangstage_master_eq', { low: 0, mid: 0, high: 0 })
+  );
+  const [eqDrawerOpen, setEqDrawerOpen] = useState(false);
 
   const [midiSupported, setMidiSupported] = useState<boolean>(midiManager.isSupported());
   const [midiError, setMidiError] = useState<string | null>(null);
@@ -166,9 +238,45 @@ export default function App() {
     return [...FACTORY_PATCHES, ...songPatches, ...userPatches];
   }, [customSongs, userPatches]);
 
+  const morphTargetPatch = stageSlots[morphSlotIndex] ?? null;
+
+  const effectivePatch = useMemo(
+    () => interpolatePatch(patch, morphTargetPatch, morphAmount),
+    [patch, morphTargetPatch, morphAmount]
+  );
+
   useEffect(() => {
-    synthEngine.setPatch(patch);
-  }, [patch]);
+    synthEngine.setPatch(effectivePatch);
+  }, [effectivePatch]);
+
+  useEffect(() => {
+    synthEngine.setBpm(bpm);
+  }, [bpm]);
+
+  useEffect(() => {
+    synthEngine.setArpeggiator(arpeggiator);
+  }, [arpeggiator]);
+
+  useEffect(() => {
+    synthEngine.setOnArpStep(setArpStepNote);
+    return () => {
+      synthEngine.setOnArpStep(null);
+    };
+  }, []);
+
+  const arpHighlightedNotes = useMemo(
+    () => (arpStepNote !== null ? new Set([arpStepNote]) : undefined),
+    [arpStepNote]
+  );
+
+  useEffect(() => {
+    synthEngine.setMasterEq(masterEq);
+    try {
+      window.localStorage.setItem('klangstage_master_eq', JSON.stringify(masterEq));
+    } catch {
+      // ignore quota errors
+    }
+  }, [masterEq]);
 
   useEffect(() => {
     try {
@@ -516,6 +624,11 @@ export default function App() {
     if (!slotPatch) return;
     setActiveSlotIndex(idx);
     setPatch(slotPatch);
+    setMorphAmount(0);
+    if (morphSlotIndex === idx) {
+      const nextTarget = stageSlots.findIndex((s, i) => s !== null && i !== idx);
+      if (nextTarget !== -1) setMorphSlotIndex(nextTarget);
+    }
     if (slotPatch.bpmHint) setBpm(slotPatch.bpmHint);
   };
 
@@ -524,13 +637,82 @@ export default function App() {
     setPatch(songPatch);
     setBpm(songBpm);
     setActiveSlotIndex(null);
+    setMorphAmount(0);
   };
+
+  const eqModified = masterEq.low !== 0 || masterEq.mid !== 0 || masterEq.high !== 0;
+
+  const renderEqStrip = (compact = false) => (
+    <div
+      className={`flex items-center gap-3 bg-[#161618] border border-[rgba(236,236,236,0.14)] rounded-[2px] px-3 py-1.5 ${
+        compact ? 'w-full justify-between flex-wrap' : ''
+      }`}
+      aria-label="Master 3-Band Equalizer"
+    >
+      <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-[rgba(236,236,236,0.54)] shrink-0">
+        Master EQ
+      </span>
+
+      <div className="flex items-center gap-3 flex-wrap">
+        {(
+          [
+            { key: 'low', label: 'Low', freq: '120Hz' },
+            { key: 'mid', label: 'Mid', freq: '1.1kHz' },
+            { key: 'high', label: 'High', freq: '5.2kHz' },
+          ] as const
+        ).map(({ key, label, freq }) => {
+          const val = masterEq[key];
+          return (
+            <div key={key} className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onDoubleClick={() => setMasterEq((prev) => ({ ...prev, [key]: 0 }))}
+                title={`${label} shelf/peak (${freq}) — double-click to reset`}
+                className="font-mono text-[10px] uppercase text-[rgba(236,236,236,0.68)] hover:text-[#ececec] w-7 text-left shrink-0"
+              >
+                {label}
+              </button>
+              <input
+                type="range"
+                min={-12}
+                max={12}
+                step={0.5}
+                value={val}
+                aria-label={`Master EQ ${label}`}
+                onChange={(e) =>
+                  setMasterEq((prev) => ({ ...prev, [key]: parseFloat(e.target.value) }))
+                }
+                className="synth-slider w-12 sm:w-14"
+              />
+              <span
+                className={`font-mono text-[10px] tabular-nums w-11 text-right shrink-0 ${
+                  val !== 0 ? 'text-[#ff4d00]' : 'text-[rgba(236,236,236,0.45)]'
+                }`}
+              >
+                {val > 0 ? '+' : ''}
+                {Number.isInteger(val) ? val.toFixed(0) : val.toFixed(1)}dB
+              </span>
+            </div>
+          );
+        })}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setMasterEq({ low: 0, mid: 0, high: 0 })}
+        disabled={!eqModified}
+        className="px-1.5 py-0.5 font-mono text-[9px] uppercase tracking-[0.06em] border border-[rgba(236,236,236,0.16)] rounded-[2px] text-[rgba(236,236,236,0.72)] hover:border-[#ff4d00] disabled:opacity-35 disabled:hover:border-[rgba(236,236,236,0.16)] shrink-0 transition-colors"
+      >
+        Flat
+      </button>
+    </div>
+  );
 
   return (
     <div className="min-h-screen bg-[#0c0c0e] text-[#ececec] flex flex-col">
       {/* Top Bar Contract: 3 zones separated by gap-8 */}
-      <header className="border-b-2 border-[#ececec] bg-[#0c0c0e] px-5 sm:px-6 py-3">
-        <div className="w-full flex items-center justify-between gap-8">
+      <header className="border-b-2 border-[#ececec] bg-[#0c0c0e] px-5 sm:px-6 py-3 flex flex-col gap-2.5">
+        <div className="w-full flex items-center justify-between gap-6">
           {/* Zone 1: Brand Wordmark */}
           <button
             type="button"
@@ -568,8 +750,23 @@ export default function App() {
             })}
           </nav>
 
-          {/* Zone 3: 1 Primary Action Button */}
-          <div className="shrink-0">
+          {/* Zone 3: Master 3-Band EQ + Primary Action Button */}
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="hidden xl:flex items-center">{renderEqStrip(false)}</div>
+
+            <button
+              type="button"
+              onClick={() => setEqDrawerOpen((v) => !v)}
+              aria-expanded={eqDrawerOpen}
+              className={`xl:hidden h-9 px-3 rounded-[2px] font-mono text-[10px] uppercase tracking-[0.08em] border transition-colors whitespace-nowrap shrink-0 ${
+                eqDrawerOpen || eqModified
+                  ? 'bg-[#161618] border-[#ff4d00] text-[#ff4d00]'
+                  : 'bg-[#161618] border-[rgba(236,236,236,0.18)] text-[#ececec]'
+              }`}
+            >
+              EQ
+            </button>
+
             <button
               type="button"
               onClick={handlePanic}
@@ -583,24 +780,31 @@ export default function App() {
             </button>
           </div>
         </div>
+
+        {eqDrawerOpen && <div className="xl:hidden">{renderEqStrip(true)}</div>}
       </header>
 
       {/* Main Workspace */}
       {activeTab === 'stage' ? (
         <div className="flex-1 flex flex-col min-h-0">
           <StageView
-            patch={patch}
+            patch={effectivePatch}
             allPatches={allPatches}
             stageSlots={stageSlots}
             activeSlotIndex={activeSlotIndex}
             onSelectPatch={(p) => {
               setPatch(p);
               setActiveSlotIndex(null);
+              setMorphAmount(0);
             }}
             onUpdatePatch={handleUpdatePatch}
             onLoadSlot={handleLoadSlot}
-            onStoreToSlot={(idx) => handleStoreToSlot(patch, idx)}
-            onSaveToLibrary={() => handleSavePatchCopy(patch)}
+            onStoreToSlot={(idx) => handleStoreToSlot(effectivePatch, idx)}
+            onSaveToLibrary={() => handleSavePatchCopy(effectivePatch)}
+            morphSlotIndex={morphSlotIndex}
+            onMorphSlotChange={setMorphSlotIndex}
+            morphAmount={morphAmount}
+            onMorphAmountChange={setMorphAmount}
             bpm={bpm}
             onBpmChange={setBpm}
             onTapTempo={handleTapTempo}
@@ -626,6 +830,14 @@ export default function App() {
             midiLearnParam={midiLearnParam}
             onSelectMidiLearnParam={setMidiLearnParam}
             midiCCMap={midiCCMap}
+            arpeggiator={arpeggiator}
+            onArpeggiatorChange={(updates) => {
+              if (updates.enabled) {
+                void ensureAudioReady();
+              }
+              setArpeggiator((prev) => ({ ...prev, ...updates }));
+            }}
+            arpHighlightedNotes={arpHighlightedNotes}
           />
         </div>
       ) : (

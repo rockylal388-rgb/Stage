@@ -129,3 +129,21 @@ export type MidiLearnableParam =
   | 'lfoDepth';
 
 export type MidiCCMap = Partial<Record<number, MidiLearnableParam>>;
+
+export type ArpPattern = 'up' | 'down' | 'up-down' | 'random';
+export type ArpRate = '1/4' | '1/8' | '1/8T' | '1/16' | '1/32';
+
+export interface ArpeggiatorConfig {
+  enabled: boolean;
+  pattern: ArpPattern;
+  rate: ArpRate;
+  octaves: 1 | 2;
+}
+
+export interface MasterEqSettings {
+  low: number;  // -12 to +12 dB
+  mid: number;  // -12 to +12 dB
+  high: number; // -12 to +12 dB
+}
+
+

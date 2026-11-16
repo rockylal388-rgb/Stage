@@ -1,4 +1,4 @@
-import { SynthPatch } from '../types/synth';
+import { ArpeggiatorConfig, MasterEqSettings, SynthPatch } from '../types/synth';
 
 interface ActiveVoice {
   note: number;
@@ -14,6 +14,9 @@ interface ActiveVoice {
   lfoPitchGain: GainNode;
   lfoFilterGain: GainNode;
   lfoAmpGain: GainNode;
+  g1: GainNode;
+  g2: GainNode;
+  gSub: GainNode;
   released: boolean;
   releaseTimeout?: number;
 }
@@ -88,6 +91,9 @@ export class LowLatencySynthEngine {
   private delayWet!: GainNode;
   private reverbNode!: ConvolverNode;
   private reverbWet!: GainNode;
+  private eqLow!: BiquadFilterNode;
+  private eqMid!: BiquadFilterNode;
+  private eqHigh!: BiquadFilterNode;
   private compressor!: DynamicsCompressorNode;
   private masterGain!: GainNode;
   private analyser!: AnalyserNode;
@@ -95,12 +101,31 @@ export class LowLatencySynthEngine {
   private noiseBuffer: AudioBuffer | null = null;
   private lastReverbDecay = 2.0;
   private lastDrive = -1;
+  private masterEq: MasterEqSettings = { low: 0, mid: 0, high: 0 };
   private initPromise: Promise<void> | null = null;
 
   // External hardware audio input
   private extStream: MediaStream | null = null;
   private extSource: MediaStreamAudioSourceNode | null = null;
   private extGain: GainNode | null = null;
+
+  // Arpeggiator state
+  private bpm = 120;
+  private arpConfig: ArpeggiatorConfig = {
+    enabled: false,
+    pattern: 'up',
+    rate: '1/8',
+    octaves: 1,
+  };
+  private arpHeldNotes = new Map<number, number>();
+  private arpPhysicallyHeld = new Set<number>();
+  private arpSustainedNotes = new Set<number>();
+  private arpTimerId: number | null = null;
+  private arpGateTimerId: number | null = null;
+  private arpStepIndex = 0;
+  private arpLastRandomNote: number | null = null;
+  private arpActiveStepNote: number | null = null;
+  private onArpStepCallback: ((note: number | null) => void) | null = null;
 
   public async init(): Promise<void> {
     if (this.ctx && this.ctx.state === 'running') {
@@ -180,6 +205,23 @@ export class LowLatencySynthEngine {
     this.reverbWet = ctx.createGain();
     this.reverbWet.gain.value = 0.3;
 
+    // Global 3-Band Master Equalizer
+    this.eqLow = ctx.createBiquadFilter();
+    this.eqLow.type = 'lowshelf';
+    this.eqLow.frequency.value = 120;
+    this.eqLow.gain.value = this.masterEq.low;
+
+    this.eqMid = ctx.createBiquadFilter();
+    this.eqMid.type = 'peaking';
+    this.eqMid.frequency.value = 1100;
+    this.eqMid.Q.value = 0.9;
+    this.eqMid.gain.value = this.masterEq.mid;
+
+    this.eqHigh = ctx.createBiquadFilter();
+    this.eqHigh.type = 'highshelf';
+    this.eqHigh.frequency.value = 5200;
+    this.eqHigh.gain.value = this.masterEq.high;
+
     // Master Limiter + Gain + Analyser
     this.compressor = ctx.createDynamicsCompressor();
     this.compressor.threshold.value = -10;
@@ -211,14 +253,31 @@ export class LowLatencySynthEngine {
     this.driveShaper.connect(this.reverbNode);
     this.reverbNode.connect(this.reverbWet);
 
-    this.dryGain.connect(this.compressor);
-    this.chorusWet.connect(this.compressor);
-    this.delayWet.connect(this.compressor);
-    this.reverbWet.connect(this.compressor);
+    this.dryGain.connect(this.eqLow);
+    this.chorusWet.connect(this.eqLow);
+    this.delayWet.connect(this.eqLow);
+    this.reverbWet.connect(this.eqLow);
+
+    this.eqLow.connect(this.eqMid);
+    this.eqMid.connect(this.eqHigh);
+    this.eqHigh.connect(this.compressor);
 
     this.compressor.connect(this.masterGain);
     this.masterGain.connect(this.analyser);
     this.analyser.connect(ctx.destination);
+  }
+
+  public setMasterEq(eq: MasterEqSettings) {
+    this.masterEq = {
+      low: Math.max(-12, Math.min(12, eq.low)),
+      mid: Math.max(-12, Math.min(12, eq.mid)),
+      high: Math.max(-12, Math.min(12, eq.high)),
+    };
+    if (!this.ctx || !this.eqLow || !this.eqMid || !this.eqHigh) return;
+    const now = this.ctx.currentTime;
+    this.eqLow.gain.setTargetAtTime(this.masterEq.low, now, 0.015);
+    this.eqMid.gain.setTargetAtTime(this.masterEq.mid, now, 0.015);
+    this.eqHigh.gain.setTargetAtTime(this.masterEq.high, now, 0.015);
   }
 
   public isReady(): boolean {
@@ -283,6 +342,20 @@ export class LowLatencySynthEngine {
       if (v.osc1Uni) v.osc1Uni.type = p.osc1Wave;
       if (v.osc2Uni) v.osc2Uni.type = p.osc2Wave;
 
+      const pitchBendCents = this.pitchBendSemitones * 100;
+      v.osc1.detune.setTargetAtTime(p.osc1Detune - p.unisonDetune * 0.5 + pitchBendCents, now, 0.015);
+      v.osc2.detune.setTargetAtTime(p.osc2Detune + p.unisonDetune * 0.5 + pitchBendCents, now, 0.015);
+      if (v.osc1Uni) {
+        v.osc1Uni.detune.setTargetAtTime(p.osc1Detune + p.unisonDetune * 0.85 + pitchBendCents, now, 0.015);
+      }
+      if (v.osc2Uni) {
+        v.osc2Uni.detune.setTargetAtTime(p.osc2Detune - p.unisonDetune * 0.85 + pitchBendCents, now, 0.015);
+      }
+
+      v.g1.gain.setTargetAtTime(p.osc1Level * (v.osc1Uni ? 0.38 : 0.65), now, 0.015);
+      v.g2.gain.setTargetAtTime(p.osc2Level * (v.osc2Uni ? 0.35 : 0.6), now, 0.015);
+      v.gSub.gain.setTargetAtTime(p.subLevel * 0.55, now, 0.015);
+
       v.lfoFilterGain.gain.setTargetAtTime(
         p.lfoTarget === 'filter' ? (p.lfoDepth + this.modWheelAmount * 0.3) * 1400 : 0,
         now,
@@ -297,7 +370,195 @@ export class LowLatencySynthEngine {
     });
   }
 
+  public setBpm(nextBpm: number) {
+    this.bpm = Math.max(40, Math.min(220, nextBpm));
+  }
+
+  public setOnArpStep(cb: ((note: number | null) => void) | null) {
+    this.onArpStepCallback = cb;
+  }
+
+  public setArpeggiator(nextConfig: ArpeggiatorConfig) {
+    const wasEnabled = this.arpConfig.enabled;
+    const rateChanged = this.arpConfig.rate !== nextConfig.rate;
+    this.arpConfig = { ...nextConfig };
+
+    if (wasEnabled && !nextConfig.enabled) {
+      this.stopArpeggiator();
+      this.arpHeldNotes.clear();
+      this.arpPhysicallyHeld.clear();
+      this.arpSustainedNotes.clear();
+      return;
+    }
+
+    if (!wasEnabled && nextConfig.enabled) {
+      // Clear any pre-existing sustained/held voices so toggling arp on starts cleanly
+      this.sustainedNotes.clear();
+      Array.from(this.voices.keys()).forEach((n) => this.releaseVoice(n));
+      this.arpStepIndex = 0;
+      this.arpLastRandomNote = null;
+      return;
+    }
+
+    if (nextConfig.enabled && rateChanged && this.arpTimerId !== null && this.arpHeldNotes.size > 0) {
+      window.clearTimeout(this.arpTimerId);
+      this.arpTimerId = window.setTimeout(() => this.runArpStep(), this.getArpStepMs());
+    }
+  }
+
+  private getArpStepMs(): number {
+    const quarterMs = (60 / this.bpm) * 1000;
+    switch (this.arpConfig.rate) {
+      case '1/4':
+        return quarterMs;
+      case '1/8':
+        return quarterMs / 2;
+      case '1/8T':
+        return quarterMs / 3;
+      case '1/16':
+        return quarterMs / 4;
+      case '1/32':
+        return quarterMs / 8;
+    }
+  }
+
+  private buildArpPool(): number[] {
+    const base = Array.from(this.arpHeldNotes.keys()).sort((a, b) => a - b);
+    if (base.length === 0) return [];
+    if (this.arpConfig.octaves === 1) return base;
+    const expanded = [...base];
+    for (const n of base) {
+      if (n + 12 <= 127) expanded.push(n + 12);
+    }
+    return expanded;
+  }
+
+  private pickNextArpNote(pool: number[]): number {
+    if (pool.length === 1) {
+      this.arpStepIndex = 0;
+      return pool[0];
+    }
+
+    switch (this.arpConfig.pattern) {
+      case 'up': {
+        const note = pool[this.arpStepIndex % pool.length];
+        this.arpStepIndex = (this.arpStepIndex + 1) % pool.length;
+        return note;
+      }
+      case 'down': {
+        const reversed = [...pool].reverse();
+        const note = reversed[this.arpStepIndex % reversed.length];
+        this.arpStepIndex = (this.arpStepIndex + 1) % reversed.length;
+        return note;
+      }
+      case 'up-down': {
+        const cycleLen = pool.length * 2 - 2;
+        const pos = this.arpStepIndex % cycleLen;
+        const idx = pos < pool.length ? pos : cycleLen - pos;
+        this.arpStepIndex = (this.arpStepIndex + 1) % cycleLen;
+        return pool[idx];
+      }
+      case 'random': {
+        const candidates = pool.filter((n) => n !== this.arpLastRandomNote);
+        const list = candidates.length > 0 ? candidates : pool;
+        const chosen = list[Math.floor(Math.random() * list.length)];
+        this.arpLastRandomNote = chosen;
+        return chosen;
+      }
+    }
+  }
+
+  private runArpStep() {
+    this.arpTimerId = null;
+    if (!this.arpConfig.enabled || this.arpHeldNotes.size === 0) {
+      this.stopArpStepVoice();
+      return;
+    }
+
+    const pool = this.buildArpPool();
+    if (pool.length === 0) {
+      this.stopArpStepVoice();
+      return;
+    }
+
+    const note = this.pickNextArpNote(pool);
+    const baseNote = note > 12 && !this.arpHeldNotes.has(note) ? note - 12 : note;
+    const velocity = this.arpHeldNotes.get(baseNote) ?? 100;
+
+    if (this.arpGateTimerId !== null) {
+      window.clearTimeout(this.arpGateTimerId);
+      this.arpGateTimerId = null;
+    }
+    if (this.arpActiveStepNote !== null) {
+      this.releaseVoice(this.arpActiveStepNote);
+      this.arpActiveStepNote = null;
+    }
+
+    const stepMs = this.getArpStepMs();
+    const gateMs = Math.max(24, Math.min(stepMs - 8, Math.round(stepMs * 0.65)));
+
+    this.arpActiveStepNote = note;
+    this.onArpStepCallback?.(note);
+    void this.triggerVoiceOn(note, velocity);
+
+    this.arpGateTimerId = window.setTimeout(() => {
+      this.arpGateTimerId = null;
+      if (this.arpActiveStepNote === note) {
+        this.releaseVoice(note);
+        this.arpActiveStepNote = null;
+        this.onArpStepCallback?.(null);
+      }
+    }, gateMs);
+
+    this.arpTimerId = window.setTimeout(() => {
+      this.runArpStep();
+    }, stepMs);
+  }
+
+  private stopArpStepVoice() {
+    if (this.arpGateTimerId !== null) {
+      window.clearTimeout(this.arpGateTimerId);
+      this.arpGateTimerId = null;
+    }
+    if (this.arpActiveStepNote !== null) {
+      this.releaseVoice(this.arpActiveStepNote);
+      this.arpActiveStepNote = null;
+    }
+    this.onArpStepCallback?.(null);
+  }
+
+  private stopArpeggiator() {
+    if (this.arpTimerId !== null) {
+      window.clearTimeout(this.arpTimerId);
+      this.arpTimerId = null;
+    }
+    this.stopArpStepVoice();
+    this.arpStepIndex = 0;
+    this.arpLastRandomNote = null;
+  }
+
   public async noteOn(note: number, velocity = 100): Promise<void> {
+    if (!this.patch) return;
+    await this.init();
+    if (!this.ctx) return;
+
+    if (this.arpConfig.enabled) {
+      const wasEmpty = this.arpHeldNotes.size === 0;
+      this.arpPhysicallyHeld.add(note);
+      this.arpSustainedNotes.delete(note);
+      this.arpHeldNotes.set(note, velocity);
+      if (wasEmpty && this.arpTimerId === null) {
+        this.arpStepIndex = 0;
+        this.arpLastRandomNote = null;
+        this.runArpStep();
+      }
+      return;
+    }
+
+    await this.triggerVoiceOn(note, velocity);
+  }
+
+  private async triggerVoiceOn(note: number, velocity = 100): Promise<void> {
     if (!this.patch) return;
     await this.init();
     if (!this.ctx) return;
@@ -492,12 +753,27 @@ export class LowLatencySynthEngine {
       lfoPitchGain,
       lfoFilterGain,
       lfoAmpGain,
+      g1,
+      g2,
+      gSub,
       released: false,
     });
   }
 
   public noteOff(note: number) {
     if (!this.ctx || !this.patch) return;
+    if (this.arpConfig.enabled) {
+      this.arpPhysicallyHeld.delete(note);
+      if (this.sustainPedalDown) {
+        this.arpSustainedNotes.add(note);
+        return;
+      }
+      this.arpHeldNotes.delete(note);
+      if (this.arpHeldNotes.size === 0) {
+        this.stopArpeggiator();
+      }
+      return;
+    }
     if (this.sustainPedalDown) {
       this.sustainedNotes.add(note);
       return;
@@ -556,6 +832,9 @@ export class LowLatencySynthEngine {
       v.noiseSrc?.disconnect();
       v.filter.disconnect();
       v.ampGain.disconnect();
+      v.g1.disconnect();
+      v.g2.disconnect();
+      v.gSub.disconnect();
       v.lfoPitchGain.disconnect();
       v.lfoFilterGain.disconnect();
       v.lfoAmpGain.disconnect();
@@ -570,6 +849,17 @@ export class LowLatencySynthEngine {
     if (!down) {
       this.sustainedNotes.forEach((n) => this.releaseVoice(n));
       this.sustainedNotes.clear();
+      if (this.arpConfig.enabled) {
+        this.arpSustainedNotes.forEach((n) => {
+          if (!this.arpPhysicallyHeld.has(n)) {
+            this.arpHeldNotes.delete(n);
+          }
+        });
+        this.arpSustainedNotes.clear();
+        if (this.arpHeldNotes.size === 0) {
+          this.stopArpeggiator();
+        }
+      }
     }
   }
 
@@ -595,11 +885,11 @@ export class LowLatencySynthEngine {
 
   public async playChord(notes: number[], durationMs = 1100, velocity = 95) {
     for (const n of notes) {
-      await this.noteOn(n, velocity);
+      await this.triggerVoiceOn(n, velocity);
     }
     window.setTimeout(() => {
       for (const n of notes) {
-        this.noteOff(n);
+        this.releaseVoice(n);
       }
     }, durationMs);
   }
@@ -673,6 +963,10 @@ export class LowLatencySynthEngine {
   }
 
   public panic() {
+    this.stopArpeggiator();
+    this.arpHeldNotes.clear();
+    this.arpPhysicallyHeld.clear();
+    this.arpSustainedNotes.clear();
     this.sustainPedalDown = false;
     this.sustainedNotes.clear();
     Array.from(this.voices.keys()).forEach((n) => this.destroyVoice(n));
