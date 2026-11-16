@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import {
   FilterType,
   LfoTarget,
@@ -99,6 +99,7 @@ export const StageView: React.FC<StageViewProps> = ({
   const [storingSlotMode, setStoringSlotMode] = useState(false);
   const [learnActive, setLearnActive] = useState(false);
   const [patchCategoryFilter, setPatchCategoryFilter] = useState<'All' | PatchCategory>('All');
+  const pressedPadsRef = useRef<Set<string>>(new Set());
 
   const filteredStagePatches = useMemo(() => {
     if (patchCategoryFilter === 'All') return allPatches;
@@ -533,11 +534,27 @@ export const StageView: React.FC<StageViewProps> = ({
               type="button"
               onPointerDown={(e) => {
                 e.preventDefault();
+                pressedPadsRef.current.add(pad.label);
                 onTriggerChord(pad.notes, true);
               }}
-              onPointerUp={() => onTriggerChord(pad.notes, false)}
-              onPointerLeave={() => onTriggerChord(pad.notes, false)}
-              onPointerCancel={() => onTriggerChord(pad.notes, false)}
+              onPointerUp={() => {
+                if (pressedPadsRef.current.has(pad.label)) {
+                  pressedPadsRef.current.delete(pad.label);
+                  onTriggerChord(pad.notes, false);
+                }
+              }}
+              onPointerLeave={() => {
+                if (pressedPadsRef.current.has(pad.label)) {
+                  pressedPadsRef.current.delete(pad.label);
+                  onTriggerChord(pad.notes, false);
+                }
+              }}
+              onPointerCancel={() => {
+                if (pressedPadsRef.current.has(pad.label)) {
+                  pressedPadsRef.current.delete(pad.label);
+                  onTriggerChord(pad.notes, false);
+                }
+              }}
               className="h-16 rounded-lg bg-[#171B24] border border-[#282D3B] hover:border-amber-500/70 active:bg-amber-500/20 active:border-amber-400 flex flex-col items-start justify-between p-2.5 text-left transition-colors touch-none"
             >
               <span className="text-xs font-semibold text-neutral-100">{pad.label}</span>

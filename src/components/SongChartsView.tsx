@@ -92,6 +92,8 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
 
   const seqTimerRef = useRef<number | null>(null);
   const heldChordRef = useRef<number[]>([]);
+  const transposeRef = useRef<number>(transpose);
+  transposeRef.current = transpose;
 
   const selectedSong = useMemo(
     () => allSongs.find((s) => s.id === selectedSongId) || allSongs[0],
@@ -126,7 +128,12 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
 
   useEffect(() => {
     return () => {
-      stopSequencer();
+      if (seqTimerRef.current) {
+        window.clearTimeout(seqTimerRef.current);
+        seqTimerRef.current = null;
+      }
+      heldChordRef.current.forEach((n) => synthEngine.noteOff(n));
+      heldChordRef.current = [];
     };
   }, []);
 
@@ -202,7 +209,7 @@ export const SongChartsView: React.FC<SongChartsViewProps> = ({
       const chordMs = beatMs * chord.beats;
 
       heldChordRef.current.forEach((n) => synthEngine.noteOff(n));
-      const notes = getTransposedNotes(chord.midiNotes);
+      const notes = chord.midiNotes.map((n) => n + transposeRef.current);
       heldChordRef.current = notes;
       setHighlightedNotes(new Set(notes));
       setActiveChordKey(keyId);

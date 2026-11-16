@@ -219,9 +219,7 @@ export default function App() {
       ? buildChordNotes(quantized, scaleLockRef.current)
       : [quantized];
 
-    if (chordModeRef.current) {
-      chordTriggersRef.current.set(rawNote, notesToPlay);
-    }
+    chordTriggersRef.current.set(rawNote, notesToPlay);
 
     for (const n of notesToPlay) {
       await synthEngine.noteOn(n, velocity);
@@ -235,11 +233,9 @@ export default function App() {
   }, []);
 
   const handleNoteOff = useCallback((rawNote: number) => {
-    const chordNotes = chordTriggersRef.current.get(rawNote);
-    const notesToStop = chordNotes ?? [quantizeToScale(rawNote, scaleLockRef.current)];
-    if (chordNotes) {
-      chordTriggersRef.current.delete(rawNote);
-    }
+    const triggeredNotes = chordTriggersRef.current.get(rawNote);
+    const notesToStop = triggeredNotes ?? [quantizeToScale(rawNote, scaleLockRef.current)];
+    chordTriggersRef.current.delete(rawNote);
 
     notesToStop.forEach((n) => synthEngine.noteOff(n));
     setActiveNotes((prev) => {
@@ -376,7 +372,7 @@ export default function App() {
 
   // Computer QWERTY keyboard performance bindings
   useEffect(() => {
-    const downKeys = new Set<string>();
+    const downKeys = new Map<string, number>();
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (e.repeat || e.metaKey || e.ctrlKey || e.altKey) return;
@@ -393,8 +389,8 @@ export default function App() {
 
       const semitone = QWERTY_TO_SEMITONE[key];
       if (semitone === undefined || downKeys.has(key)) return;
-      downKeys.add(key);
       const midi = (baseOctave + 1) * 12 + semitone;
+      downKeys.set(key, midi);
       void handleNoteOn(midi, 102);
     };
 
@@ -405,18 +401,26 @@ export default function App() {
         synthEngine.setSustain(false);
         return;
       }
-      const semitone = QWERTY_TO_SEMITONE[key];
-      if (semitone === undefined) return;
+      const heldMidi = downKeys.get(key);
+      if (heldMidi === undefined) return;
       downKeys.delete(key);
-      const midi = (baseOctave + 1) * 12 + semitone;
-      handleNoteOff(midi);
+      handleNoteOff(heldMidi);
+    };
+
+    const onBlur = () => {
+      downKeys.forEach((midi) => handleNoteOff(midi));
+      downKeys.clear();
     };
 
     window.addEventListener('keydown', onKeyDown);
     window.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', onBlur);
     return () => {
+      downKeys.forEach((midi) => handleNoteOff(midi));
+      downKeys.clear();
       window.removeEventListener('keydown', onKeyDown);
       window.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', onBlur);
     };
   }, [baseOctave, handleNoteOff, handleNoteOn]);
 
@@ -469,17 +473,31 @@ export default function App() {
       return;
     }
     synthEngine.panic();
+    chordTriggersRef.current.clear();
     setSustainOn(false);
     setActiveNotes(new Set());
+  };
+
+  const handleSavePatchCopy = (targetPatch: SynthPatch) => {
+    const baseName = targetPatch.name.replace(/\s+\(Copy(?:\s+\d+)?\)$|\s+\(Edit\)$/i, '');
+    const copy: SynthPatch = {
+      ...targetPatch,
+      id: `user-${Date.now()}`,
+      name: `${baseName} (Copy)`,
+      author: 'User',
+    };
+    setUserPatches((prev) => [copy, ...prev]);
+    setPatch(copy);
   };
 
   const handleSavePatchToLibrary = (targetPatch: SynthPatch) => {
     const copy: SynthPatch = {
       ...targetPatch,
-      id: targetPatch.id.startsWith('ai-') || targetPatch.id.startsWith('user-')
-        ? targetPatch.id
-        : `user-${Date.now()}`,
-      name: targetPatch.author === 'AI Lab' ? targetPatch.name : `${targetPatch.name} (Edit)`,
+      id:
+        targetPatch.id.startsWith('ai-') || targetPatch.id.startsWith('user-')
+          ? targetPatch.id
+          : `user-${Date.now()}`,
+      name: targetPatch.name,
       author: targetPatch.author === 'AI Lab' ? 'AI Lab' : 'User',
     };
     setUserPatches((prev) => {
@@ -588,7 +606,7 @@ export default function App() {
             onUpdatePatch={handleUpdatePatch}
             onLoadSlot={handleLoadSlot}
             onStoreToSlot={(idx) => handleStoreToSlot(patch, idx)}
-            onSaveToLibrary={() => handleSavePatchToLibrary(patch)}
+            onSaveToLibrary={() => handleSavePatchCopy(patch)}
             bpm={bpm}
             onBpmChange={setBpm}
             onTapTempo={handleTapTempo}
@@ -622,7 +640,9 @@ export default function App() {
             activePatchId={patch.id}
             onLoadSongPatch={handleLoadSongPatch}
             customSongs={customSongs}
-            onAddCustomSong={(song) => setCustomSongs((prev) => [song, ...prev])}
+            onAddCustomSong={(song) =>
+              setCustomSongs((prev) => [song, ...prev.filter((s) => s.id !== song.id)])
+            }
             onDeleteCustomSong={(id) =>
               setCustomSongs((prev) => prev.filter((s) => s.id !== id))
             }

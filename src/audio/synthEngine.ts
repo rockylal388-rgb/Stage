@@ -24,7 +24,7 @@ function midiToFreq(note: number): number {
 
 function makeDistortionCurve(amount: number): Float32Array<ArrayBuffer> {
   const k = amount * 65;
-  const nSamples = 44100;
+  const nSamples = 4096;
   const buffer = new ArrayBuffer(nSamples * 4);
   const curve = new Float32Array(buffer);
   const deg = Math.PI / 180;
@@ -94,6 +94,8 @@ export class LowLatencySynthEngine {
   private globalLfo!: OscillatorNode;
   private noiseBuffer: AudioBuffer | null = null;
   private lastReverbDecay = 2.0;
+  private lastDrive = -1;
+  private initPromise: Promise<void> | null = null;
 
   // External hardware audio input
   private extStream: MediaStream | null = null;
@@ -101,17 +103,32 @@ export class LowLatencySynthEngine {
   private extGain: GainNode | null = null;
 
   public async init(): Promise<void> {
-    if (!this.ctx) {
-      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
-      this.ctx = new AudioCtx({ latencyHint: 'interactive' });
-      this.buildMasterGraph(this.ctx);
+    if (this.ctx && this.ctx.state === 'running') {
+      return;
     }
-    if (this.ctx.state === 'suspended') {
-      await this.ctx.resume();
+    if (this.initPromise) {
+      return this.initPromise;
     }
-    if (this.patch) {
-      this.applyPatchToMaster(this.patch);
-    }
+    this.initPromise = (async () => {
+      try {
+        if (!this.ctx) {
+          const AudioCtx =
+            window.AudioContext ||
+            (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+          this.ctx = new AudioCtx({ latencyHint: 'interactive' });
+          this.buildMasterGraph(this.ctx);
+        }
+        if (this.ctx.state === 'suspended') {
+          await this.ctx.resume();
+        }
+        if (this.patch) {
+          this.applyPatchToMaster(this.patch);
+        }
+      } finally {
+        this.initPromise = null;
+      }
+    })();
+    return this.initPromise;
   }
 
   private buildMasterGraph(ctx: AudioContext) {
@@ -232,18 +249,21 @@ export class LowLatencySynthEngine {
   private applyPatchToMaster(p: SynthPatch) {
     if (!this.ctx) return;
     const now = this.ctx.currentTime;
-    this.driveShaper.curve = makeDistortionCurve(p.drive);
+    if (Math.abs(p.drive - this.lastDrive) > 0.005) {
+      this.lastDrive = p.drive;
+      this.driveShaper.curve = makeDistortionCurve(p.drive);
+    }
     this.chorusWet.gain.setTargetAtTime(p.chorusMix * 0.75, now, 0.02);
-    this.delayNode.delayTime.setTargetAtTime(p.delayTime, now, 0.03);
-    this.delayFeedbackGain.gain.setTargetAtTime(p.delayFeedback, now, 0.02);
+    this.delayNode.delayTime.setTargetAtTime(Math.max(0.01, p.delayTime), now, 0.03);
+    this.delayFeedbackGain.gain.setTargetAtTime(Math.min(0.85, Math.max(0, p.delayFeedback)), now, 0.02);
     this.delayWet.gain.setTargetAtTime(p.delayMix, now, 0.02);
     this.reverbWet.gain.setTargetAtTime(p.reverbMix, now, 0.02);
     this.masterGain.gain.setTargetAtTime(p.masterGain, now, 0.02);
 
     this.globalLfo.type = p.lfoWave;
-    this.globalLfo.frequency.setTargetAtTime(p.lfoRate, now, 0.02);
+    this.globalLfo.frequency.setTargetAtTime(Math.max(0.05, p.lfoRate), now, 0.02);
 
-    if (Math.abs(p.reverbDecay - this.lastReverbDecay) > 0.35) {
+    if (Math.abs(p.reverbDecay - this.lastReverbDecay) > 0.45) {
       this.lastReverbDecay = p.reverbDecay;
       this.reverbNode.buffer = createImpulseResponse(this.ctx, Math.min(4.5, p.reverbDecay + 0.5), 2.2);
     }
@@ -307,14 +327,14 @@ export class LowLatencySynthEngine {
     const targetFreq = midiToFreq(note);
     this.lastPlayedNote = note;
 
-    const osc1FreqStart = startFreq * Math.pow(2, p.osc1Octave);
-    const osc1FreqTarget = targetFreq * Math.pow(2, p.osc1Octave);
+    const osc1FreqStart = Math.max(20, startFreq * Math.pow(2, p.osc1Octave));
+    const osc1FreqTarget = Math.max(20, targetFreq * Math.pow(2, p.osc1Octave));
 
-    const osc2FreqStart = startFreq * Math.pow(2, p.osc2Semi / 12);
-    const osc2FreqTarget = targetFreq * Math.pow(2, p.osc2Semi / 12);
+    const osc2FreqStart = Math.max(20, startFreq * Math.pow(2, p.osc2Semi / 12));
+    const osc2FreqTarget = Math.max(20, targetFreq * Math.pow(2, p.osc2Semi / 12));
 
-    const subFreqStart = startFreq * 0.5;
-    const subFreqTarget = targetFreq * 0.5;
+    const subFreqStart = Math.max(20, startFreq * 0.5);
+    const subFreqTarget = Math.max(20, targetFreq * 0.5);
 
     const pitchBendCents = this.pitchBendSemitones * 100;
 
@@ -323,7 +343,7 @@ export class LowLatencySynthEngine {
     osc1.type = p.osc1Wave;
     osc1.frequency.setValueAtTime(osc1FreqStart, now);
     if (p.glide > 0.002) {
-      osc1.frequency.exponentialRampToValueAtTime(Math.max(20, osc1FreqTarget), now + p.glide);
+      osc1.frequency.exponentialRampToValueAtTime(osc1FreqTarget, now + p.glide);
     }
     osc1.detune.value = p.osc1Detune - p.unisonDetune * 0.5 + pitchBendCents;
 
@@ -331,7 +351,7 @@ export class LowLatencySynthEngine {
     osc2.type = p.osc2Wave;
     osc2.frequency.setValueAtTime(osc2FreqStart, now);
     if (p.glide > 0.002) {
-      osc2.frequency.exponentialRampToValueAtTime(Math.max(20, osc2FreqTarget), now + p.glide);
+      osc2.frequency.exponentialRampToValueAtTime(osc2FreqTarget, now + p.glide);
     }
     osc2.detune.value = p.osc2Detune + p.unisonDetune * 0.5 + pitchBendCents;
 
@@ -343,7 +363,7 @@ export class LowLatencySynthEngine {
       osc1Uni.type = p.osc1Wave;
       osc1Uni.frequency.setValueAtTime(osc1FreqStart, now);
       if (p.glide > 0.002) {
-        osc1Uni.frequency.exponentialRampToValueAtTime(Math.max(20, osc1FreqTarget), now + p.glide);
+        osc1Uni.frequency.exponentialRampToValueAtTime(osc1FreqTarget, now + p.glide);
       }
       osc1Uni.detune.value = p.osc1Detune + p.unisonDetune * 0.85 + pitchBendCents;
 
@@ -351,7 +371,7 @@ export class LowLatencySynthEngine {
       osc2Uni.type = p.osc2Wave;
       osc2Uni.frequency.setValueAtTime(osc2FreqStart, now);
       if (p.glide > 0.002) {
-        osc2Uni.frequency.exponentialRampToValueAtTime(Math.max(20, osc2FreqTarget), now + p.glide);
+        osc2Uni.frequency.exponentialRampToValueAtTime(osc2FreqTarget, now + p.glide);
       }
       osc2Uni.detune.value = p.osc2Detune - p.unisonDetune * 0.85 + pitchBendCents;
     }
@@ -360,7 +380,7 @@ export class LowLatencySynthEngine {
     subOsc.type = 'sine';
     subOsc.frequency.setValueAtTime(subFreqStart, now);
     if (p.glide > 0.002) {
-      subOsc.frequency.exponentialRampToValueAtTime(Math.max(20, subFreqTarget), now + p.glide);
+      subOsc.frequency.exponentialRampToValueAtTime(subFreqTarget, now + p.glide);
     }
     subOsc.detune.value = pitchBendCents;
 
